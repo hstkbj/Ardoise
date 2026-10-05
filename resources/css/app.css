@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+
+@source '../js/**/*.vue';
+@source '../js/**/*.js';
+@source '../views/**/*.blade.php';
+
+/* ------------------------------------------------------------------
+   Design tokens — Ardoise
+   Un seul accent (vert ardoise), des neutres chauds, des teintes pastel
+   réservées au site public et aux états.
+------------------------------------------------------------------- */
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+
+    --color-brand-50: #F1F7F4;
+    --color-brand-100: #E7F0EC;
+    --color-brand-200: #C9DED6;
+    --color-brand-300: #9DB8AF;
+    --color-brand-500: #2D7A66;
+    --color-brand-600: #1D5C4D;
+    --color-brand-700: #174A3E;
+    --color-brand-800: #123F35;
+
+    --color-ink: #15171C;
+    --color-body: #3A3F48;
+    --color-muted: #4F5560;
+    --color-subtle: #6B7079;
+    --color-line: #E4E4E0;
+    --color-line-soft: #ECECE8;
+    --color-line-strong: #D6D6D0;
+    --color-ground: #F6F6F3;
+    --color-ground-soft: #FAFAF8;
+
+    --color-warn-50: #FBF1E4;
+    --color-warn-200: #EBD9C3;
+    --color-warn-700: #8A4205;
+    --color-danger-50: #FBEAEA;
+    --color-danger-600: #A12B2B;
+    --color-info-50: #EEF0F6;
+    --color-info-700: #34426B;
+
+    /* Site public (style doux) */
+    --color-sun: #F2B33D;
+    --color-sun-soft: #FDF3DC;
+    --color-cream: #FBF7EE;
+    --color-mint: #EAF4EF;
+    --color-lavender: #F0EEFA;
+    --color-lavender-700: #4B3F9E;
+    --color-sky: #EAF2FB;
+    --color-blush: #FBEFEC;
+    --color-mist: #F7F7F4;
+}
+
+@layer base {
+    html { color: var(--color-ink); background: var(--color-ground); }
+    body { font-family: var(--font-sans); }
+    :focus-visible { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+    .tabular { font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+    .btn {
+        @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-55;
+    }
+    .btn-sm { @apply h-8 px-3 text-[13px]; }
+    .btn-lg { @apply h-12 px-5 text-base; }
+    .btn-primary { @apply bg-brand-600 text-white hover:bg-brand-700; }
+    .btn-secondary { @apply border border-line-strong bg-white text-ink hover:bg-ground; }
+    .btn-ghost { @apply text-body hover:bg-ground; }
+    .btn-danger { @apply bg-danger-600 text-white hover:bg-[#8a2323]; }
+    .btn-icon { @apply h-10 w-10 px-0; }
+
+    .input {
+        @apply h-10 w-full rounded-lg border border-line-strong bg-white px-3 text-sm text-ink placeholder:text-subtle disabled:bg-ground disabled:text-subtle;
+    }
+    .input:focus { @apply border-brand-600 outline-none ring-2 ring-brand-100; }
+    .input[aria-invalid='true'] { @apply border-danger-600 ring-danger-50; }
+    textarea.input { @apply h-auto py-2.5; }
+    .label { @apply text-[13px] font-medium text-body; }
+
+    .card { @apply rounded-xl border border-line bg-white; }
+    .card-title { @apply text-[15px] font-semibold text-ink; }
+    .link { @apply font-medium text-brand-600 hover:text-brand-800; }
+
+    .skeleton { @apply animate-pulse rounded bg-line-soft; }
+}
+
+@media print {
+    body { background: #fff; }
+}
