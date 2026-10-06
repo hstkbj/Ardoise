@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\ParentAuthController;
+use App\Http\Controllers\Api\V1\Central\FedaPayWebhookController;
 use App\Http\Controllers\Api\V1\Central\PublicController;
 use App\Http\Controllers\Api\V1\Parent\ParentPortalController;
 use App\Http\Controllers\Api\V1\Platform\BillingController;
@@ -27,6 +28,12 @@ Route::prefix('public')->group(function () {
     Route::post('demo-requests', [PublicController::class, 'demoRequest'])->middleware('throttle:10,1');
 });
 Route::post('newsletter', [PublicController::class, 'newsletter'])->middleware('throttle:10,1');
+
+// ── Webhooks FedaPay (signés ; aucune session) ─────────────────────────────
+Route::prefix('webhooks/fedapay')->middleware('throttle:120,1')->group(function () {
+    Route::post('/', [FedaPayWebhookController::class, 'platform'])->name('webhooks.fedapay.platform');
+    Route::post('{tenantCode}', [FedaPayWebhookController::class, 'school'])->where('tenantCode', '[a-z0-9-]+')->name('webhooks.fedapay.school');
+});
 
 // ── Connexion (école déterminée par le domaine, ou par le code saisi) ──────
 Route::middleware('tenant:optional')->group(function () {
@@ -55,6 +62,7 @@ Route::prefix('platform')->middleware('central')->group(function () {
 
         Route::post('tenants/{tenant}/suspend', [TenantController::class, 'suspend']);
         Route::post('tenants/{tenant}/activate', [TenantController::class, 'activate']);
+        Route::post('tenants/{tenant}/resend-credentials', [TenantController::class, 'resendCredentials']);
         Route::get('tenants/{tenant}/stats', [TenantController::class, 'stats']);
         Route::apiResource('tenants', TenantController::class)->except('destroy');
 
@@ -83,11 +91,11 @@ Route::prefix('platform')->middleware('central')->group(function () {
 });
 
 // ── Espace école (base de l'établissement) ────────────────────────────────
-Route::middleware(['tenant', 'tenant.active', 'auth:sanctum', 'tenant.user', 'throttle:api'])->group(function () {
+Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'throttle:api'])->group(function () {
 
     // Tous les profils
-    Route::get('auth/me', [AuthController::class, 'me']);
-    Route::post('auth/logout', [AuthController::class, 'logout']);
+    Route::get('auth/me', [AuthController::class, 'me'])->name('auth.me');
+    Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
     Route::put('profile', [Tenant\ProfileController::class, 'update']);
     Route::put('profile/password', [Tenant\ProfileController::class, 'password']);
 
@@ -96,10 +104,17 @@ Route::middleware(['tenant', 'tenant.active', 'auth:sanctum', 'tenant.user', 'th
     Route::post('notifications/{id}/read', [Tenant\NotificationController::class, 'markAsRead']);
 
     // Accès contrôlé dans le contrôleur (personnel, enseignant de la classe, parent de l'enfant)
-    Route::get('report-cards/{student}', [Tenant\ReportCardController::class, 'show']);
-    Route::get('report-cards/{student}/pdf', [Tenant\ReportCardController::class, 'pdf']);
-    Route::get('documents/{document}/download', [Tenant\DocumentController::class, 'download']);
-    Route::get('payments/{payment}/receipt', [Tenant\PaymentController::class, 'receipt']);
+    Route::get('report-cards/{student}', [Tenant\ReportCardController::class, 'show'])->middleware('feature:grades');
+    Route::get('report-cards/{student}/pdf', [Tenant\ReportCardController::class, 'pdf'])->middleware('feature:grades');
+    Route::get('documents/{document}/download', [Tenant\DocumentController::class, 'download'])->middleware('feature:documents');
+    Route::get('payments/{payment}/receipt', [Tenant\PaymentController::class, 'receipt'])->middleware('feature:finance');
+
+    // Abonnement de l'école : consultation et paiement en ligne (FedaPay)
+    Route::prefix('billing')->name('billing.')->middleware('role:school_admin,director')->group(function () {
+        Route::get('/', [Tenant\BillingController::class, 'show'])->name('show');
+        Route::post('checkout', [Tenant\BillingController::class, 'checkout'])->middleware('role:school_admin')->name('checkout');
+        Route::post('verify', [Tenant\BillingController::class, 'verify'])->name('verify');
+    });
 
     // Personnel et enseignants
     Route::middleware('role:school_admin,director,academic_manager,accountant,secretary,teacher')->group(function () {
@@ -129,41 +144,51 @@ Route::middleware(['tenant', 'tenant.active', 'auth:sanctum', 'tenant.user', 'th
         Route::apiResource('teachers', Tenant\TeacherController::class);
         Route::apiResource('subjects', Tenant\SubjectController::class);
 
-        Route::get('assessments/{assessment}/grades', [Tenant\AssessmentController::class, 'sheet']);
-        Route::put('assessments/{assessment}/grades', [Tenant\AssessmentController::class, 'saveGrades']);
-        Route::post('assessments/{assessment}/validate', [Tenant\AssessmentController::class, 'validateGrades']);
-        Route::post('assessments/{assessment}/unlock', [Tenant\AssessmentController::class, 'unlock']);
-        Route::apiResource('assessments', Tenant\AssessmentController::class);
+        Route::middleware('feature:grades')->group(function () {
+            Route::get('assessments/{assessment}/grades', [Tenant\AssessmentController::class, 'sheet']);
+            Route::put('assessments/{assessment}/grades', [Tenant\AssessmentController::class, 'saveGrades']);
+            Route::post('assessments/{assessment}/validate', [Tenant\AssessmentController::class, 'validateGrades']);
+            Route::post('assessments/{assessment}/unlock', [Tenant\AssessmentController::class, 'unlock']);
+            Route::apiResource('assessments', Tenant\AssessmentController::class);
 
-        Route::get('report-cards', [Tenant\ReportCardController::class, 'index']);
-        Route::post('report-cards/generate', [Tenant\ReportCardController::class, 'generate']);
-        Route::post('report-cards/publish', [Tenant\ReportCardController::class, 'publish']);
-        Route::put('report-cards/{student}', [Tenant\ReportCardController::class, 'update']);
+            Route::get('report-cards', [Tenant\ReportCardController::class, 'index']);
+            Route::post('report-cards/generate', [Tenant\ReportCardController::class, 'generate']);
+            Route::post('report-cards/publish', [Tenant\ReportCardController::class, 'publish']);
+            Route::put('report-cards/{student}', [Tenant\ReportCardController::class, 'update']);
+        });
 
-        Route::get('attendance/session', [Tenant\AttendanceController::class, 'session']);
-        Route::post('attendance/session', [Tenant\AttendanceController::class, 'saveSession']);
-        Route::get('attendance', [Tenant\AttendanceController::class, 'index']);
-        Route::post('attendance/{attendance}/justify', [Tenant\AttendanceController::class, 'justify']);
+        Route::middleware('feature:attendance')->group(function () {
+            Route::get('attendance/session', [Tenant\AttendanceController::class, 'session']);
+            Route::post('attendance/session', [Tenant\AttendanceController::class, 'saveSession']);
+            Route::get('attendance', [Tenant\AttendanceController::class, 'index']);
+            Route::post('attendance/{attendance}/justify', [Tenant\AttendanceController::class, 'justify']);
+        });
 
-        Route::get('timetables', [Tenant\TimetableController::class, 'index']);
-        Route::post('timetables/entries', [Tenant\TimetableController::class, 'store']);
-        Route::put('timetables/entries/{entry}', [Tenant\TimetableController::class, 'update']);
-        Route::delete('timetables/entries/{entry}', [Tenant\TimetableController::class, 'destroy']);
+        Route::middleware('feature:timetable')->group(function () {
+            Route::get('timetables', [Tenant\TimetableController::class, 'index']);
+            Route::post('timetables/entries', [Tenant\TimetableController::class, 'store']);
+            Route::put('timetables/entries/{entry}', [Tenant\TimetableController::class, 'update']);
+            Route::delete('timetables/entries/{entry}', [Tenant\TimetableController::class, 'destroy']);
+        });
 
-        Route::apiResource('homework', Tenant\HomeworkController::class)->parameters(['homework' => 'homework']);
+        Route::apiResource('homework', Tenant\HomeworkController::class)->parameters(['homework' => 'homework'])->middleware('feature:homework');
         Route::apiResource('announcements', Tenant\AnnouncementController::class);
 
-        Route::apiResource('fees', Tenant\FeeController::class);
-        Route::get('payments/summary', [Tenant\PaymentController::class, 'summary']);
-        Route::post('payments/records/{record}/confirm', [Tenant\PaymentController::class, 'confirm']);
-        Route::post('payments/records/{record}/cancel', [Tenant\PaymentController::class, 'cancel']);
-        Route::get('payments', [Tenant\PaymentController::class, 'index']);
-        Route::post('payments', [Tenant\PaymentController::class, 'store']);
-        Route::get('payments/{payment}', [Tenant\PaymentController::class, 'show']);
+        Route::middleware('feature:finance')->group(function () {
+            Route::apiResource('fees', Tenant\FeeController::class);
+            Route::get('payments/summary', [Tenant\PaymentController::class, 'summary']);
+            Route::post('payments/records/{record}/confirm', [Tenant\PaymentController::class, 'confirm']);
+            Route::post('payments/records/{record}/cancel', [Tenant\PaymentController::class, 'cancel']);
+            Route::get('payments', [Tenant\PaymentController::class, 'index']);
+            Route::post('payments', [Tenant\PaymentController::class, 'store']);
+            Route::get('payments/{payment}', [Tenant\PaymentController::class, 'show']);
+        });
 
-        Route::get('documents', [Tenant\DocumentController::class, 'index']);
-        Route::post('documents', [Tenant\DocumentController::class, 'store']);
-        Route::delete('documents/{document}', [Tenant\DocumentController::class, 'destroy']);
+        Route::middleware('feature:documents')->group(function () {
+            Route::get('documents', [Tenant\DocumentController::class, 'index']);
+            Route::post('documents', [Tenant\DocumentController::class, 'store']);
+            Route::delete('documents/{document}', [Tenant\DocumentController::class, 'destroy']);
+        });
 
         Route::post('users/bulk/{action}', [Tenant\UserController::class, 'bulk']);
         Route::post('users/{user}/toggle', [Tenant\UserController::class, 'toggle']);
@@ -185,15 +210,16 @@ Route::middleware(['tenant', 'tenant.active', 'auth:sanctum', 'tenant.user', 'th
     });
 
     // Parents (application mobile et web)
-    Route::prefix('parent')->middleware('role:parent')->group(function () {
+    Route::prefix('parent')->middleware(['role:parent', 'feature:parent_portal'])->group(function () {
         Route::get('children', [ParentPortalController::class, 'children']);
         Route::get('children/{student}', [ParentPortalController::class, 'child'])->whereNumber('student');
         Route::get('announcements', [ParentPortalController::class, 'announcements']);
-        Route::get('documents', [ParentPortalController::class, 'documents']);
+        Route::get('documents', [ParentPortalController::class, 'documents'])->middleware('feature:documents');
         Route::post('document-requests', [ParentPortalController::class, 'requestDocument']);
-        Route::get('timetable', [ParentPortalController::class, 'timetable']);
-        Route::post('attendance/{attendance}/justify', [ParentPortalController::class, 'justify']);
-        Route::post('homework/{homework}/done', [ParentPortalController::class, 'homeworkDone']);
-        Route::post('payments/{assignment}/checkout', [ParentPortalController::class, 'checkout']);
+        Route::get('timetable', [ParentPortalController::class, 'timetable'])->middleware('feature:timetable');
+        Route::post('attendance/{attendance}/justify', [ParentPortalController::class, 'justify'])->middleware('feature:attendance');
+        Route::post('homework/{homework}/done', [ParentPortalController::class, 'homeworkDone'])->middleware('feature:homework');
+        Route::post('payments/{assignment}/checkout', [ParentPortalController::class, 'checkout'])->middleware('feature:finance');
+        Route::post('payments/verify', [ParentPortalController::class, 'verifyPayment'])->middleware('feature:finance');
     });
 });

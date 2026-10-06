@@ -69,6 +69,20 @@ export const OPTIONS = reactive({
     { value: 'monthly', label: 'Mensuel' },
     { value: 'yearly', label: 'Annuel' },
   ],
+  // Modules activables par plan (clés identiques à App\Support\PlanFeatures)
+  modules: [
+    { value: 'grades', label: 'Notes et bulletins' },
+    { value: 'attendance', label: 'Absences et retards' },
+    { value: 'parent_portal', label: 'Espace parent (application)' },
+    { value: 'homework', label: 'Devoirs' },
+    { value: 'timetable', label: 'Emplois du temps' },
+    { value: 'finance', label: 'Frais et paiements' },
+    { value: 'online_payments', label: 'Paiement en ligne des frais (FedaPay)' },
+    { value: 'sms', label: 'Notifications SMS' },
+    { value: 'documents', label: 'Documents' },
+    { value: 'analytics', label: 'Tableaux de bord consolidés' },
+    { value: 'priority_support', label: 'Support prioritaire' },
+  ],
   plans: ['Essentiel', 'Établissement', 'Groupe scolaire'].map((p) => ({ value: p, label: p })),
   allRoles: [
     { value: 'school_admin', label: 'Administrateur' },

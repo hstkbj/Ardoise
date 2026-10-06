@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureTenantIsActive;
 use App\Http\Middleware\EnsureUserBelongsToTenant;
 use App\Http\Middleware\IdentifyTenant;
+use App\Http\Middleware\RequirePlanFeature;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -29,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.user' => EnsureUserBelongsToTenant::class,
             'central' => CentralDomainOnly::class,
             'role' => EnsureRole::class,
+            'feature' => RequirePlanFeature::class,
         ]);
 
         // Connecter la base de l'école avant que la session DB recharge son utilisateur.

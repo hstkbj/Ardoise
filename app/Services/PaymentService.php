@@ -63,7 +63,13 @@ class PaymentService
 
         ActivityLog::record('payment.recorded', $student, ['amount' => $amount, 'fee' => $fee->name, 'references' => $payments->pluck('reference')]);
 
-        $this->notifier->parentsOf($student, 'Paiement reçu', number_format($amount, 0, ',', ' ').' FCFA reçus pour '.$fee->name.'. Merci.', '/parent/payments');
+        $this->notifier->event(
+            'payment.received',
+            'Paiement reçu',
+            number_format($amount, 0, ',', ' ').' FCFA reçus pour '.$fee->name.'. Merci.',
+            $student,
+            ['parent' => '/parent/payments', 'staff' => '/admin/payments'],
+        );
 
         return $payments;
     }

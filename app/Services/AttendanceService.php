@@ -78,7 +78,13 @@ class AttendanceService
                 $text = $missing['status'] === 'absent'
                     ? "{$student->first_name} est absent(e) le {$label} ({$slot})."
                     : "{$student->first_name} est arrivé(e) en retard le {$label} ({$slot}).";
-                $this->notifier->parentsOf($student, $missing['status'] === 'absent' ? 'Absence' : 'Retard', $text, '/parent/attendance', urgent: $missing['status'] === 'absent');
+                $this->notifier->event(
+                    'attendance.recorded',
+                    ($missing['status'] === 'absent' ? 'Absence · ' : 'Retard · ').$student->first_name,
+                    $text,
+                    $student,
+                    ['parent' => '/parent/attendance', 'teacher' => '/teacher/attendance/history', 'staff' => '/admin/attendance/history'],
+                );
             }
         }
 

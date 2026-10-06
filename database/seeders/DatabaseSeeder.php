@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Central\Plan;
 use App\Models\Central\PlatformAdmin;
+use App\Support\PlanFeatures;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -13,9 +14,9 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $plans = [
-            ['Essentiel', 'Une école sur un seul site.', 'monthly', 1, 300, 40, ['Notes et bulletins', 'Absences', 'Espace parent']],
-            ['Établissement', 'Établissement complet avec gestion financière.', 'monthly', 1, 1200, 150, ['Tout Essentiel', 'Frais et paiements', 'Emplois du temps', 'Notifications SMS']],
-            ['Groupe scolaire', 'Plusieurs sites sous une même direction.', 'yearly', 10, 10000, 1000, ['Tout Établissement', 'Tableaux consolidés', 'Support prioritaire']],
+            ['Essentiel', 'Une école sur un seul site.', 'monthly', 1, 300, 40, ['grades', 'attendance', 'parent_portal', 'homework', 'documents']],
+            ['Établissement', 'Établissement complet avec gestion financière.', 'monthly', 1, 1200, 150, ['grades', 'attendance', 'parent_portal', 'homework', 'documents', 'finance', 'online_payments', 'timetable', 'sms']],
+            ['Groupe scolaire', 'Plusieurs sites sous une même direction.', 'yearly', 10, 10000, 1000, PlanFeatures::keys()],
         ];
 
         foreach ($plans as [$name, $description, $period, $schools, $students, $users, $features]) {

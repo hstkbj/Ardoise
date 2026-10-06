@@ -5,7 +5,7 @@ namespace App\Support;
 /** Valeurs par défaut des paramètres d'une école (écran /admin/settings). */
 class SettingDefaults
 {
-    public const SECTIONS = ['identity', 'contact', 'year', 'grading', 'reports', 'notifications', 'finance'];
+    public const SECTIONS = ['identity', 'contact', 'year', 'grading', 'reports', 'notifications', 'notification_rules', 'finance', 'online_payments'];
 
     public static function for(string $section): array
     {
@@ -19,7 +19,9 @@ class SettingDefaults
                 'show_class_average' => 'yes',
                 'decisions' => "Félicitations\nEncouragements\nTableau d'honneur\nAvertissement travail\nBlâme",
             ],
-            'notifications' => ['channels' => ['in_app', 'sms'], 'absence_notify' => 'immediate', 'sms_sender' => 'ARDOISE'],
+            'notifications' => ['absence_notify' => 'immediate', 'sms_sender' => 'ARDOISE'],
+            'notification_rules' => ['rules' => NotificationEvents::defaults()],
+            'online_payments' => ['enabled' => 'no', 'environment' => 'sandbox', 'public_key' => null, 'secret_key' => null, 'webhook_secret' => null],
             'finance' => ['currency' => 'XOF', 'receipt_prefix' => 'REC-', 'methods' => ['Espèces', 'Mobile money', 'Virement'], 'late_after_days' => 30],
             default => [],
         };

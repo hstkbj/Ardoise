@@ -71,6 +71,10 @@ async function submit() {
       </button>
     </div>
 
+    <p v-if="route.query.expired" class="mt-6 rounded-xl bg-warn-50 p-4 text-sm text-warn-700" role="status">
+      L’abonnement de votre établissement a expiré. Seul l’administrateur peut se connecter pour le renouveler.
+    </p>
+
     <form class="mt-6 space-y-4" novalidate @submit.prevent="submit">
       <template v-if="profile === 'parent'">
         <div class="rounded-xl bg-mint p-4 text-[13px] text-body">

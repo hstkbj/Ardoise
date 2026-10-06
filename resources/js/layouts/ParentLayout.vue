@@ -1,5 +1,6 @@
 <script setup>
 /** Espace parent : pensé mobile d'abord (barre d'onglets en bas), menu complet sur grand écran. */
+import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import BrandLogo from '@/components/layout/BrandLogo.vue';
@@ -9,7 +10,8 @@ import { useAuthStore } from '@/stores/auth';
 const auth = useAuthStore();
 const route = useRoute();
 const router = useRouter();
-const mobileItems = PARENT_NAV.filter((i) => i.mobile).slice(0, 5);
+const items = computed(() => PARENT_NAV.filter((i) => auth.hasFeature(i.feature)));
+const mobileItems = computed(() => items.value.filter((i) => i.mobile).slice(0, 5));
 
 function isActive(to) {
   return route.path === to || route.path.startsWith(`${to}/`);
@@ -32,7 +34,7 @@ async function logout() {
         </div>
       </div>
       <nav class="mx-auto hidden max-w-5xl gap-1 overflow-x-auto px-4 pb-2 md:flex" aria-label="Espace parent">
-        <RouterLink v-for="i in PARENT_NAV" :key="i.to" :to="i.to" class="flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium whitespace-nowrap" :class="isActive(i.to) ? 'bg-brand-600 text-white' : 'text-body hover:bg-ground'">
+        <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium whitespace-nowrap" :class="isActive(i.to) ? 'bg-brand-600 text-white' : 'text-body hover:bg-ground'">
           <AppIcon :name="i.icon" class="size-4" />{{ i.label }}
         </RouterLink>
       </nav>

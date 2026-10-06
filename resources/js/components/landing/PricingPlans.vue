@@ -35,7 +35,7 @@ const featuredIndex = computed(() => (plans.value.length >= 3 ? 1 : 0));
         <template v-else>Sur devis</template>
       </p>
       <ul class="mt-6 flex-1 space-y-2.5 text-sm">
-        <li v-for="f in p.features" :key="f" class="flex items-start gap-2"><AppIcon name="check" class="mt-0.5 size-4 shrink-0 text-brand-600" />{{ f }}</li>
+        <li v-for="f in p.feature_labels ?? p.features" :key="f" class="flex items-start gap-2"><AppIcon name="check" class="mt-0.5 size-4 shrink-0 text-brand-600" />{{ f }}</li>
         <li v-if="p.max_students" class="flex items-start gap-2 text-muted"><AppIcon name="users" class="mt-0.5 size-4 shrink-0" />Jusqu’à {{ p.max_students.toLocaleString('fr-FR') }} élèves</li>
       </ul>
       <RouterLink to="/contact" class="btn mt-7 rounded-full" :class="i === featuredIndex ? 'btn-primary' : 'btn-secondary'">Demander une démo</RouterLink>

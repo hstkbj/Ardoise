@@ -15,6 +15,7 @@ use App\Models\Tenant\Grade;
 use App\Models\Tenant\Homework;
 use App\Models\Tenant\HomeworkSubmission;
 use App\Models\Tenant\ParentProfile;
+use App\Models\Tenant\Payment;
 use App\Models\Tenant\ReportCard;
 use App\Models\Tenant\Setting;
 use App\Models\Tenant\Student;
@@ -22,7 +23,9 @@ use App\Models\Tenant\Term;
 use App\Models\Tenant\TimetableEntry;
 use App\Services\AttendanceService;
 use App\Services\Notifier;
+use App\Services\Payments\FedaPay\FedaPayException;
 use App\Services\Payments\PaymentGateway;
+use App\Services\Payments\SchoolFedaPay;
 use App\Services\PaymentService;
 use App\Services\ReportCardService;
 use Illuminate\Http\JsonResponse;
@@ -40,12 +43,12 @@ class ParentPortalController extends Controller
     /** GET /parent/children : enfants avec leur résumé complet (accueil de l'application). */
     public function children(Request $request): JsonResponse
     {
-        return response()->json(['data' => $this->students($request)->map(fn (Student $s) => $this->summary($s))->values()]);
+        return response()->json(['data' => $this->students($request)->map(fn (Student $s) => $this->withoutDisabledModules($this->summary($s)))->values()]);
     }
 
     public function child(Request $request, int $student): JsonResponse
     {
-        return response()->json(['data' => $this->summary($this->ownStudent($request, $student))]);
+        return response()->json(['data' => $this->withoutDisabledModules($this->summary($this->ownStudent($request, $student)))]);
     }
 
     /** POST /parent/attendance/{attendance}/justify { reason, file? } */
@@ -56,7 +59,13 @@ class ParentPortalController extends Controller
         $path = $request->file('file')?->store('tenants/'.tenant()->code.'/justifications');
 
         $service->justify($attendance, $data['reason'], $path, $request->user());
-        $notifier->roles(['secretary', 'director'], 'Absence justifiée par un parent', $attendance->student->full_name.' · '.$attendance->date->format('d/m').' : '.$data['reason'], 'admin', '/admin/attendance/history');
+        $notifier->event(
+            'attendance.justified',
+            'Absence justifiée par un parent',
+            $attendance->student->full_name.' · '.$attendance->date->format('d/m').' : '.$data['reason'],
+            $attendance->student,
+            ['teacher' => '/teacher/attendance/history', 'staff' => '/admin/attendance/history'],
+        );
 
         return response()->json(['message' => 'Justificatif envoyé.', 'data' => AttendanceController::present($attendance->load('student', 'classRoom'))]);
     }
@@ -77,20 +86,62 @@ class ParentPortalController extends Controller
         return response()->json(['message' => 'Enregistré.']);
     }
 
-    /** POST /parent/payments/{assignment}/checkout { method, phone } */
-    public function checkout(Request $request, FeeAssignment $assignment, PaymentService $payments, Notifier $notifier): JsonResponse
+    /**
+     * POST /parent/payments/{assignment}/checkout { method, phone, amount }
+     *
+     * Avec FedaPay activé par l'école : renvoie l'URL de la page de paiement
+     * (Mobile Money / carte) ; sinon la demande est transmise à la comptabilité.
+     */
+    public function checkout(Request $request, FeeAssignment $assignment, PaymentService $payments, Notifier $notifier, SchoolFedaPay $fedapay): JsonResponse
     {
         $this->ownStudent($request, $assignment->student_id);
         abort_if($assignment->status === 'paid', 422, 'Cette échéance est déjà réglée.');
-        $data = $request->validate(['method' => ['required', 'string', 'max:50'], 'phone' => ['nullable', 'string', 'max:30'], 'amount' => ['nullable', 'integer', 'min:1']]);
-
+        $data = $request->validate(['method' => ['nullable', 'string', 'max:50'], 'phone' => ['nullable', 'string', 'max:30'], 'amount' => ['nullable', 'integer', 'min:1']]);
         $amount = min($data['amount'] ?? $assignment->remaining(), $assignment->remaining());
-        $result = app(PaymentGateway::class)->initiate($assignment, $amount, $data['method'], $data['phone'] ?? null);
-        $payment = $payments->createPending($assignment, $amount, $data['method'], $result['transaction_ref']);
 
-        $notifier->roles(['accountant'], 'Paiement en ligne à confirmer', $assignment->student->full_name.' · '.number_format($amount, 0, ',', ' ').' FCFA ('.$data['method'].')', 'admin', '/admin/payments');
+        if ($fedapay->isEnabled()) {
+            ['payment' => $payment, 'url' => $url] = $fedapay->startCheckout($assignment, $amount, $request->user(), $data['phone'] ?? null);
+
+            return response()->json(['data' => [
+                'status' => 'redirect',
+                'provider' => 'fedapay',
+                'redirect_url' => $url,
+                'payment_id' => $payment->id,
+                'reference' => $payment->reference,
+            ]], 201);
+        }
+
+        $method = $data['method'] ?? 'Mobile money';
+        $result = app(PaymentGateway::class)->initiate($assignment, $amount, $method, $data['phone'] ?? null);
+        $payment = $payments->createPending($assignment, $amount, $method, $result['transaction_ref']);
+
+        $notifier->event(
+            'payment.online_pending',
+            'Paiement à confirmer',
+            $assignment->student->full_name.' · '.number_format($amount, 0, ',', ' ').' FCFA ('.$method.')',
+            $assignment->student,
+            ['staff' => '/admin/payments/'.$assignment->id],
+        );
 
         return response()->json(['data' => $result + ['payment_id' => $payment->id, 'reference' => $payment->reference]], 201);
+    }
+
+    /** POST /parent/payments/verify { reference } : au retour de FedaPay, vérifie le paiement auprès de l'API. */
+    public function verifyPayment(Request $request, SchoolFedaPay $fedapay): JsonResponse
+    {
+        $reference = $request->validate(['reference' => ['required', 'string', 'max:50']])['reference'];
+        $payment = Payment::where('reference', $reference)->firstOrFail();
+        $this->ownStudent($request, $payment->student_id);
+
+        if ($fedapay->isEnabled()) {
+            try {
+                $payment = $fedapay->sync($payment);
+            } catch (FedaPayException) {
+                // le webhook confirmera le paiement plus tard
+            }
+        }
+
+        return response()->json(['data' => ['reference' => $payment->reference, 'status' => $payment->status, 'amount' => $payment->amount]]);
     }
 
     /** GET /parent/announcements : annonces publiées pour les parents, les classes ou les sites des enfants. */
@@ -126,7 +177,13 @@ class ParentPortalController extends Controller
     {
         $data = $request->validate(['student_id' => ['required', 'integer'], 'type' => ['nullable', 'string', 'max:100']]);
         $student = $this->ownStudent($request, $data['student_id']);
-        $notifier->roles(['secretary', 'school_admin'], 'Demande de document', ($data['type'] ?? 'Certificat de scolarité').' pour '.$student->full_name.' (demandé par '.$request->user()->name.')', 'admin', '/admin/documents');
+        $notifier->event(
+            'document.requested',
+            'Demande de document',
+            ($data['type'] ?? 'Certificat de scolarité').' pour '.$student->full_name.' (demandé par '.$request->user()->name.')',
+            $student,
+            ['staff' => '/admin/documents'],
+        );
 
         return response()->json(['message' => 'Demande transmise au secrétariat.']);
     }
@@ -140,6 +197,30 @@ class ParentPortalController extends Controller
             ->where('class_room_id', $student->currentEnrollment?->class_room_id)
             ->orderBy('day_of_week')->orderBy('starts_at')->get()
             ->map(fn ($e) => TimetableController::present($e))]);
+    }
+
+    /**
+     * Retire de la synthèse les modules absents du plan de l'école.
+     *
+     * @param  array<string, mixed>  $summary
+     * @return array<string, mixed>
+     */
+    protected function withoutDisabledModules(array $summary): array
+    {
+        $empty = [
+            'grades' => ['grades' => [], 'subjects' => [], 'evolution' => [], 'report_cards' => [], 'general_average' => null, 'rank' => null],
+            'attendance' => ['attendance' => [], 'absences' => 0, 'late' => 0],
+            'homework' => ['homework' => []],
+            'finance' => ['payments' => []],
+        ];
+
+        foreach ($empty as $feature => $values) {
+            if (! tenant()->hasFeature($feature)) {
+                $summary = array_merge($summary, $values);
+            }
+        }
+
+        return $summary;
     }
 
     /** Synthèse d'un enfant, au format de l'application parent. */

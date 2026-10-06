@@ -7,6 +7,7 @@ use App\Http\Resources\UserResource;
 use App\Models\Tenant\ActivityLog;
 use App\Models\Tenant\Role;
 use App\Models\Tenant\User;
+use App\Services\Billing\PlanLimits;
 use App\Support\ListQuery;
 use App\Support\Phone;
 use Illuminate\Http\JsonResponse;
@@ -36,10 +37,14 @@ class UserController extends Controller
     }
 
     /** Invitation : l'utilisateur reçoit un lien pour choisir son mot de passe. */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, PlanLimits $limits): JsonResponse
     {
         $this->authorize('users.create');
         $data = $this->validated($request);
+
+        if (($data['role'] ?? null) !== 'parent') {
+            $limits->ensureCanAdd('users');
+        }
 
         $user = User::create(['name' => $data['full_name'], 'email' => $data['email'], 'phone' => $data['phone'], 'status' => 'invited']);
         $this->syncRelations($user, $data);
@@ -86,6 +91,10 @@ class UserController extends Controller
         abort_if($user->is($request->user()), 422, 'Vous ne pouvez pas suspendre votre propre compte.');
 
         if ($user->status === 'suspended') {
+            if (! $user->hasRole('parent')) {
+                app(PlanLimits::class)->ensureCanAdd('users');
+            }
+
             $user->update(['status' => $user->password ? 'active' : 'invited']);
         } else {
             $this->ensureNotLastAdmin($user);

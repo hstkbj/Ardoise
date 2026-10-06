@@ -8,7 +8,6 @@ use App\Models\Tenant\Announcement;
 use App\Models\Tenant\ParentProfile;
 use App\Models\Tenant\Student;
 use App\Models\Tenant\User;
-use App\Notifications\SchoolNotification;
 use App\Services\Notifier;
 use App\Support\ListQuery;
 use Illuminate\Http\JsonResponse;
@@ -74,7 +73,6 @@ class AnnouncementController extends Controller
 
         $announcement->update(['published_at' => $announcement->published_at ?? now()]);
         $audiences = $announcement->audiences ?: ['parents'];
-        $users = collect();
 
         $students = Student::query()
             ->where('status', 'active')
@@ -82,15 +80,19 @@ class AnnouncementController extends Controller
             ->when($announcement->campus_id && ! $announcement->class_room_id, fn ($q) => $q->whereHas('currentEnrollment.classRoom', fn ($c) => $c->where('campus_id', $announcement->campus_id)))
             ->pluck('id');
 
+        $channels = array_values(array_intersect(['in_app', 'email', 'sms'], $announcement->channels ?: ['in_app']));
+        $body = mb_substr(strip_tags($announcement->body), 0, 160);
+        $parents = collect();
+
         if (array_intersect($audiences, ['parents', 'class', 'school', 'students'])) {
-            $users = $users->merge(User::whereIn('id', ParentProfile::whereHas('students', fn ($q) => $q->whereIn('students.id', $students))->pluck('user_id'))->get());
+            $parents = User::where('status', 'active')->whereIn('id', ParentProfile::whereHas('students', fn ($q) => $q->whereIn('students.id', $students))->pluck('user_id'))->get();
+            $this->notifier->users($parents, $announcement->title, $body, 'announcement', '/parent/announcements', $channels);
         }
 
         if (array_intersect($audiences, ['teachers', 'school'])) {
-            $users = $users->merge(User::whereHas('roles', fn ($q) => $q->where('key', 'teacher'))->get());
+            $teachers = User::where('status', 'active')->whereHas('roles', fn ($q) => $q->where('key', 'teacher'))->whereNotIn('id', $parents->pluck('id'))->get();
+            $this->notifier->users($teachers, $announcement->title, $body, 'announcement', null, $channels);
         }
-
-        $this->notifier->users($users->unique('id')->where('status', 'active')->values(), $announcement->title, mb_substr(strip_tags($announcement->body), 0, 160), 'admin', '/parent/announcements', in_array('sms', $announcement->channels ?? [], true));
     }
 
     protected function validated(Request $request): array

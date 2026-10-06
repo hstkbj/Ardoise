@@ -1,4 +1,7 @@
-/** Menus par espace. `permission` masque l'entrée si l'utilisateur ne l'a pas. */
+/**
+ * Menus par espace. Une entrée est masquée si l'utilisateur n'a pas la `permission`,
+ * aucun des `roles`, ou si le module `feature` n'est pas inclus dans le plan de l'école.
+ */
 
 export const ADMIN_NAV = [
   {
@@ -22,12 +25,12 @@ export const ADMIN_NAV = [
   {
     label: 'Pédagogie',
     items: [
-      { label: 'Évaluations', to: '/admin/assessments', icon: 'clipboard', permission: 'assessments.view' },
-      { label: 'Saisie des notes', to: '/admin/grades', icon: 'pencil', permission: 'grades.view' },
-      { label: 'Bulletins', to: '/admin/report-cards', icon: 'file', permission: 'report_cards.view' },
-      { label: 'Absences', to: '/admin/attendance', icon: 'check-circle', permission: 'attendance.view' },
-      { label: 'Emploi du temps', to: '/admin/timetable', icon: 'clock', permission: 'timetable.view' },
-      { label: 'Devoirs', to: '/admin/homework', icon: 'list', permission: 'homework.view' },
+      { label: 'Évaluations', to: '/admin/assessments', icon: 'clipboard', permission: 'assessments.view', feature: 'grades' },
+      { label: 'Saisie des notes', to: '/admin/grades', icon: 'pencil', permission: 'grades.view', feature: 'grades' },
+      { label: 'Bulletins', to: '/admin/report-cards', icon: 'file', permission: 'report_cards.view', feature: 'grades' },
+      { label: 'Absences', to: '/admin/attendance', icon: 'check-circle', permission: 'attendance.view', feature: 'attendance' },
+      { label: 'Emploi du temps', to: '/admin/timetable', icon: 'clock', permission: 'timetable.view', feature: 'timetable' },
+      { label: 'Devoirs', to: '/admin/homework', icon: 'list', permission: 'homework.view', feature: 'homework' },
     ],
   },
   {
@@ -40,11 +43,12 @@ export const ADMIN_NAV = [
   {
     label: 'Administration',
     items: [
-      { label: 'Frais scolaires', to: '/admin/fees', icon: 'tag', permission: 'fees.view' },
-      { label: 'Paiements', to: '/admin/payments', icon: 'wallet', permission: 'payments.view' },
-      { label: 'Documents', to: '/admin/documents', icon: 'folder', permission: 'documents.view' },
+      { label: 'Frais scolaires', to: '/admin/fees', icon: 'tag', permission: 'fees.view', feature: 'finance' },
+      { label: 'Paiements', to: '/admin/payments', icon: 'wallet', permission: 'payments.view', feature: 'finance' },
+      { label: 'Documents', to: '/admin/documents', icon: 'folder', permission: 'documents.view', feature: 'documents' },
       { label: 'Utilisateurs', to: '/admin/users', icon: 'shield', permission: 'users.view' },
       { label: 'Rôles et permissions', to: '/admin/roles', icon: 'key', permission: 'roles.view' },
+      { label: 'Abonnement', to: '/admin/billing', icon: 'refresh', roles: ['school_admin', 'director'] },
       { label: 'Support', to: '/admin/support', icon: 'help' },
       { label: 'Paramètres', to: '/admin/settings', icon: 'sliders', permission: 'settings.view' },
     ],
@@ -58,16 +62,16 @@ export const TEACHER_NAV = [
       { label: 'Tableau de bord', to: '/teacher/dashboard', icon: 'dashboard' },
       { label: 'Mes classes', to: '/teacher/classes', icon: 'layers' },
       { label: 'Mes élèves', to: '/teacher/students', icon: 'users' },
-      { label: 'Emploi du temps', to: '/teacher/timetable', icon: 'clock' },
+      { label: 'Emploi du temps', to: '/teacher/timetable', icon: 'clock', feature: 'timetable' },
     ],
   },
   {
     label: 'Pédagogie',
     items: [
-      { label: 'Évaluations', to: '/teacher/assessments', icon: 'clipboard' },
-      { label: 'Saisie des notes', to: '/teacher/grades', icon: 'pencil' },
-      { label: 'Appel / absences', to: '/teacher/attendance', icon: 'check-circle' },
-      { label: 'Devoirs', to: '/teacher/homework', icon: 'list' },
+      { label: 'Évaluations', to: '/teacher/assessments', icon: 'clipboard', feature: 'grades' },
+      { label: 'Saisie des notes', to: '/teacher/grades', icon: 'pencil', feature: 'grades' },
+      { label: 'Appel / absences', to: '/teacher/attendance', icon: 'check-circle', feature: 'attendance' },
+      { label: 'Devoirs', to: '/teacher/homework', icon: 'list', feature: 'homework' },
     ],
   },
   {
@@ -82,14 +86,14 @@ export const TEACHER_NAV = [
 export const PARENT_NAV = [
   { label: 'Accueil', to: '/parent/dashboard', icon: 'home', mobile: true },
   { label: 'Enfants', to: '/parent/children', icon: 'users', mobile: true },
-  { label: 'Notes', to: '/parent/grades', icon: 'file', mobile: true },
-  { label: 'Bulletins', to: '/parent/report-cards', icon: 'clipboard' },
-  { label: 'Absences', to: '/parent/attendance', icon: 'check-circle' },
-  { label: 'Devoirs', to: '/parent/homework', icon: 'list', mobile: true },
-  { label: 'Emploi du temps', to: '/parent/timetable', icon: 'clock' },
-  { label: 'Paiements', to: '/parent/payments', icon: 'wallet' },
+  { label: 'Notes', to: '/parent/grades', icon: 'file', mobile: true, feature: 'grades' },
+  { label: 'Bulletins', to: '/parent/report-cards', icon: 'clipboard', feature: 'grades' },
+  { label: 'Absences', to: '/parent/attendance', icon: 'check-circle', feature: 'attendance' },
+  { label: 'Devoirs', to: '/parent/homework', icon: 'list', mobile: true, feature: 'homework' },
+  { label: 'Emploi du temps', to: '/parent/timetable', icon: 'clock', feature: 'timetable' },
+  { label: 'Paiements', to: '/parent/payments', icon: 'wallet', feature: 'finance' },
   { label: 'Annonces', to: '/parent/announcements', icon: 'megaphone' },
-  { label: 'Documents', to: '/parent/documents', icon: 'folder' },
+  { label: 'Documents', to: '/parent/documents', icon: 'folder', feature: 'documents' },
   { label: 'Alertes', to: '/parent/notifications', icon: 'bell', mobile: true },
   { label: 'Profil', to: '/profile', icon: 'user', mobile: true },
 ];

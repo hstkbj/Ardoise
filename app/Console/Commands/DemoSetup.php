@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Actions\CreateTenant;
+use App\Models\Central\Plan;
 use App\Models\Central\Tenant;
 use App\Services\PlatformStatsService;
 use App\Tenancy\DatabaseCreator;
@@ -48,6 +49,9 @@ class DemoSetup extends Command
             'admin_password' => 'password',
             'status' => 'active',
             'expires_at' => now()->addYear()->toDateString(),
+            'send_credentials' => false,
+            // Formule complète : tous les modules sont visibles dans la démonstration
+            'plan_id' => Plan::where('name', 'Groupe scolaire')->value('id'),
         ]);
 
         $tenant = $result['tenant'];

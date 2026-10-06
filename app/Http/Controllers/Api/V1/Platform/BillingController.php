@@ -6,10 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Central\Subscription;
 use App\Models\Central\SubscriptionPayment;
 use App\Models\Central\Tenant;
+use App\Services\Billing\SubscriptionBilling;
 use App\Support\ListQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 /** Abonnements et paiements SaaS. */
@@ -81,8 +82,8 @@ class BillingController extends Controller
         return ListQuery::json($page);
     }
 
-    /** Enregistre un paiement reçu et prolonge l'abonnement. */
-    public function storePayment(Request $request): JsonResponse
+    /** Enregistre un paiement reçu hors ligne (virement, espèces…) et prolonge l'abonnement. */
+    public function storePayment(Request $request, SubscriptionBilling $billing): JsonResponse
     {
         $data = $request->validate([
             'tenant_id' => ['required', 'integer', 'exists:central.tenants,id'],
@@ -90,24 +91,29 @@ class BillingController extends Controller
             'method' => ['required', 'string', 'max:50'],
             'paid_at' => ['nullable', 'date'],
             'extend_months' => ['nullable', 'integer', 'min:1', 'max:36'],
+            'plan_id' => ['nullable', 'integer', 'exists:central.plans,id'],
         ]);
 
         $tenant = Tenant::with('subscription')->findOrFail($data['tenant_id']);
         $payment = SubscriptionPayment::create([
             'tenant_id' => $tenant->id,
             'subscription_id' => $tenant->subscription?->id,
+            'plan_id' => $data['plan_id'] ?? $tenant->plan_id,
             'customer' => $tenant->admin_name,
             'amount' => $data['amount'],
+            'months' => $data['extend_months'] ?? null,
             'method' => $data['method'],
-            'reference' => 'SUB-'.now()->format('Y').'-'.Str::upper(Str::random(6)),
-            'status' => 'paid',
-            'paid_at' => $data['paid_at'] ?? now(),
+            'provider' => 'manual',
+            'reference' => $billing->nextReference(),
+            'status' => 'pending',
         ]);
 
-        if ($months = $data['extend_months'] ?? null) {
-            $from = $tenant->expires_at && $tenant->expires_at->isFuture() ? $tenant->expires_at : now();
-            $tenant->update(['status' => 'active', 'expires_at' => $from->copy()->addMonths($months)]);
-            $tenant->subscription?->update(['status' => 'active', 'expires_at' => $tenant->expires_at]);
+        $paidAt = isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now();
+
+        if ($payment->months) {
+            $payment = $billing->markPaid($payment, $paidAt);
+        } else {
+            $payment->update(['status' => 'paid', 'paid_at' => $paidAt]);
         }
 
         return response()->json(['data' => ['id' => $payment->id, 'reference' => $payment->reference]], 201);

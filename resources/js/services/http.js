@@ -19,9 +19,15 @@ const http = axios.create({
 });
 
 let unauthorizedHandler = () => {};
+let paymentRequiredHandler = () => {};
 
 export function onUnauthorized(fn) {
   unauthorizedHandler = fn;
+}
+
+/** 402 : abonnement de l'école expiré (seul l'administrateur peut renouveler). */
+export function onPaymentRequired(fn) {
+  paymentRequiredHandler = fn;
 }
 
 /** À appeler avant une connexion (cookie XSRF-TOKEN). */
@@ -34,6 +40,7 @@ http.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
     if (status === 401 && !error.config?.skipAuthRedirect) unauthorizedHandler();
+    if (status === 402 && error.response?.data?.code === 'subscription_expired' && !error.config?.url?.includes('/auth/login')) paymentRequiredHandler();
     // Format Laravel : { message, errors: { champ: ['…'] } }
     const errors = error.response?.data?.errors || {};
     const firstError = Object.values(errors)[0]?.[0];

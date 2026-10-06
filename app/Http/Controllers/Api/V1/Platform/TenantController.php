@@ -4,13 +4,18 @@ namespace App\Http\Controllers\Api\V1\Platform;
 
 use App\Actions\CreateTenant;
 use App\Http\Controllers\Controller;
+use App\Mail\TenantWelcomeMail;
 use App\Models\Central\Plan;
 use App\Models\Central\Tenant;
+use App\Models\Tenant\User;
 use App\Services\PlatformStatsService;
 use App\Support\ListQuery;
+use App\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class TenantController extends Controller
@@ -55,9 +60,9 @@ class TenantController extends Controller
             'meta' => [
                 'admin_email' => $data['admin_email'],
                 'admin_password' => $result['admin_password'],
-                'login_url' => request()->getScheme().'://'.$result['tenant']->primaryDomain().'/login',
+                'login_url' => $result['tenant']->url('/login'),
             ],
-            'message' => 'École créée.',
+            'message' => 'École créée. Les identifiants ont été envoyés à '.$data['admin_email'].'.',
         ], 201);
     }
 
@@ -115,6 +120,28 @@ class TenantController extends Controller
         return response()->json(['data' => self::present($tenant->load('plan', 'domains')), 'message' => 'École activée.']);
     }
 
+    /** Nouveau mot de passe pour l'administrateur de l'école, envoyé par e-mail avec l'adresse de connexion. */
+    public function resendCredentials(Tenant $tenant, TenantManager $tenancy): JsonResponse
+    {
+        $password = Str::password(12, symbols: false);
+
+        $email = $tenancy->run($tenant, function () use ($tenant, $password) {
+            $admin = User::where('email', $tenant->admin_email)->first()
+                ?? User::whereHas('roles', fn ($q) => $q->where('key', 'school_admin'))->orderBy('id')->first();
+
+            abort_unless($admin && $admin->email, 422, 'Aucun administrateur avec une adresse e-mail dans cette école.');
+
+            $admin->forceFill(['password' => $password, 'status' => 'active'])->save();
+            $admin->tokens()->delete();
+
+            return $admin->email;
+        });
+
+        Mail::to($email)->queue(new TenantWelcomeMail($tenant, $password, isReset: true));
+
+        return response()->json(['message' => 'Nouveaux identifiants envoyés à '.$email.'.']);
+    }
+
     /** Statistiques en direct (connexion temporaire à la base de l'école). */
     public function stats(Tenant $tenant, PlatformStatsService $stats): JsonResponse
     {
@@ -141,6 +168,8 @@ class TenantController extends Controller
             'created_at' => $t->created_at?->toDateString(),
             'expires_at' => $t->expires_at?->toDateString(),
             'trial_ends_at' => $t->trial_ends_at?->toDateString(),
+            'billing_state' => $t->billingState(),
+            'grace_ends_at' => $t->graceEndsAt()?->toDateString(),
         ];
     }
 

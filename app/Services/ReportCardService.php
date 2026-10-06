@@ -151,7 +151,13 @@ class ReportCardService
 
         ActivityLog::record('report_cards.published', null, ['term' => $term->name, 'count' => $cards->count()]);
 
-        $this->notifier->parentsOf($cards->pluck('student')->filter(), 'Bulletin disponible', 'Le bulletin du '.mb_strtolower($term->name).' est disponible.', '/parent/report-cards', urgent: true);
+        $this->notifier->event(
+            'report_card.published',
+            'Bulletin disponible',
+            'Le bulletin du '.mb_strtolower($term->name).' est disponible.',
+            $cards->pluck('student')->filter(),
+            ['parent' => '/parent/report-cards', 'teacher' => '/teacher/classes', 'staff' => '/admin/report-cards'],
+        );
 
         return $cards->count();
     }

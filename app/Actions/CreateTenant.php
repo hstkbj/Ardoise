@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Mail\TenantWelcomeMail;
 use App\Models\Central\Domain;
 use App\Models\Central\Plan;
 use App\Models\Central\Subscription;
@@ -13,6 +14,7 @@ use App\Tenancy\DatabaseCreator;
 use App\Tenancy\TenantManager;
 use App\Tenancy\TenantMigrator;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -32,7 +34,7 @@ class CreateTenant
     ) {}
 
     /**
-     * @param  array{name: string, code?: string|null, admin_name: string, admin_email: string, plan_id?: int|null, status?: string, expires_at?: string|null, domain?: string|null, admin_password?: string|null}  $data
+     * @param  array{name: string, code?: string|null, admin_name: string, admin_email: string, plan_id?: int|null, status?: string, expires_at?: string|null, domain?: string|null, admin_password?: string|null, send_credentials?: bool}  $data
      * @return array{tenant: Tenant, admin_password: string}
      */
     public function handle(array $data): array
@@ -112,8 +114,14 @@ class CreateTenant
         }
 
         Cache::forget("tenancy:host:{$code}.".config('tenancy.base_domain'));
+        $tenant->refresh();
 
-        return ['tenant' => $tenant->refresh(), 'admin_password' => $password];
+        // Identifiants, sous-domaine et lien de connexion envoyés à l'administrateur (file d'attente)
+        if ($data['send_credentials'] ?? true) {
+            Mail::to($tenant->admin_email)->queue(new TenantWelcomeMail($tenant, $password));
+        }
+
+        return ['tenant' => $tenant, 'admin_password' => $password];
     }
 
     protected function generateCode(string $name): string

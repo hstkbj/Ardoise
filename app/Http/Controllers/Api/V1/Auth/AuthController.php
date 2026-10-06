@@ -10,6 +10,7 @@ use App\Models\Tenant\User;
 use App\Services\Sms\SmsGateway;
 use App\Support\Phone;
 use App\Tenancy\TenantManager;
+use App\Tenancy\TenantResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\TransientToken;
 
 /**
  * Connexion du personnel et des enseignants (e-mail ou téléphone + mot de passe).
@@ -38,7 +40,7 @@ class AuthController extends Controller
 
         $tenant = $this->resolveTenant($data['school_code'] ?? null);
 
-        if (! $tenant->isAccessible()) {
+        if ($tenant->billingState() === Tenant::STATE_SUSPENDED) {
             abort(423, 'L’accès à cet établissement est suspendu.');
         }
 
@@ -58,6 +60,14 @@ class AuthController extends Controller
             throw ValidationException::withMessages(['login' => 'Ce compte est suspendu.']);
         }
 
+        // Abonnement impayé : seul l'administrateur entre, pour renouveler
+        if ($tenant->requiresPayment() && ! $user->hasRole('school_admin')) {
+            return response()->json([
+                'message' => 'L’abonnement de l’établissement a expiré. Seul l’administrateur peut se connecter pour le renouveler.',
+                'code' => 'subscription_expired',
+            ], 402);
+        }
+
         $user->forceFill(['last_login_at' => now(), 'status' => 'active'])->save();
 
         return $this->startSession($request, $user, $tenant, (bool) ($data['remember'] ?? false), 'login');
@@ -72,7 +82,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        if ($user && method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && ! $user->currentAccessToken() instanceof \Laravel\Sanctum\TransientToken) {
+        if ($user && method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && ! $user->currentAccessToken() instanceof TransientToken) {
             $user->currentAccessToken()->delete();
         }
 
@@ -167,7 +177,7 @@ class AuthController extends Controller
 
         return response()->json([
             'data' => (new MeResource($user->load('roles')))->resolve($request),
-            'token' => \App\Tenancy\TenantResolver::prefixToken($tenant, $token),
+            'token' => TenantResolver::prefixToken($tenant, $token),
             'token_type' => 'Bearer',
         ]);
     }

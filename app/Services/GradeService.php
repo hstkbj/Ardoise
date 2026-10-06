@@ -97,7 +97,14 @@ class GradeService
 
         $subject = $assessment->classSubject->subject->name;
         $students = $assessment->grades()->with('student')->whereNotNull('score')->get()->pluck('student')->filter();
-        $this->notifier->parentsOf($students, 'Nouvelle note · '.$subject, $assessment->title.' : la note est disponible.', '/parent/grades');
+        $this->notifier->event(
+            'grades.published',
+            'Nouvelle note · '.$subject,
+            $assessment->title.' : la note est disponible.',
+            $students,
+            ['parent' => '/parent/grades', 'teacher' => '/teacher/assessments', 'staff' => '/admin/assessments'],
+            [$assessment->classSubject->class_room_id],
+        );
     }
 
     /** Réservé à la direction : journalisé. */

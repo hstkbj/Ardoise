@@ -25,9 +25,15 @@ const mobileOpen = ref(false);
 const menuOpen = ref(false);
 const unread = ref(0);
 
+/** Abonnement impayé après le délai de grâce : seule la page Abonnement reste dans le menu. */
+function isVisible(item) {
+  if (auth.requiresPayment) return item.to === '/admin/billing';
+  return auth.can(item.permission) && auth.hasFeature(item.feature) && (!item.roles || auth.hasRole(...item.roles));
+}
+
 const groups = computed(() =>
   props.nav
-    .map((g) => ({ ...g, items: g.items.filter((i) => auth.can(i.permission)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => isVisible(i)) }))
     .filter((g) => g.items.length),
 );
 
@@ -36,7 +42,7 @@ function isActive(to) {
 }
 
 async function loadUnread() {
-  if (!props.notificationsTo || auth.isPlatform) return;
+  if (!props.notificationsTo || auth.isPlatform || auth.requiresPayment) return;
   try {
     const res = await notificationsApi.list({ per_page: 1 });
     unread.value = res.meta?.unread ?? 0;

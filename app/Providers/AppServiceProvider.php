@@ -4,9 +4,13 @@ namespace App\Providers;
 
 use App\Models\PersonalAccessToken;
 use App\Models\Tenant\User;
-use App\Services\Sms\LogSmsGateway;
+use App\Services\Payments\FedaPay\FedaPayClient;
+use App\Services\Payments\ManualPaymentGateway;
+use App\Services\Payments\PaymentGateway;
 use App\Services\Sms\HttpSmsGateway;
+use App\Services\Sms\LogSmsGateway;
 use App\Services\Sms\SmsGateway;
+use App\Tenancy\QueueTenancy;
 use App\Tenancy\TenantManager;
 use App\Tenancy\TenantResolver;
 use Illuminate\Auth\Notifications\ResetPassword;
@@ -25,8 +29,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(TenantManager::class);
         $this->app->singleton(TenantResolver::class);
 
-        // Pilote de paiement en ligne (à remplacer par un agrégateur mobile money)
-        $this->app->bind(\App\Services\Payments\PaymentGateway::class, \App\Services\Payments\ManualPaymentGateway::class);
+        // Paiement des frais sans FedaPay : demande transmise à la comptabilité
+        $this->app->bind(PaymentGateway::class, ManualPaymentGateway::class);
+
+        // FedaPay, compte de la plateforme (abonnements des écoles)
+        $this->app->bind(FedaPayClient::class, fn () => FedaPayClient::platform());
 
         $this->app->singleton(SmsGateway::class, fn () => match (config('ardoise.sms.driver')) {
             'http' => new HttpSmsGateway(config('ardoise.sms.http')),
@@ -37,6 +44,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+
+        // Notifications et e-mails en file : la tâche emporte l'école concernée
+        QueueTenancy::register();
 
         /*
          * RBAC : « students.view », « grades.publish »…

@@ -1,14 +1,23 @@
 <script setup>
-import { reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import ParentSection from '@/components/domain/ParentSection.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import { parentApi, paymentsApi } from '@/services/api';
+import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
+import { useParentChildren } from '@/composables/useParentChildren';
 import { formatDate, formatMoney, openFile } from '@/utils/format';
 
 const ui = useUiStore();
+const auth = useAuthStore();
+const route = useRoute();
+const router = useRouter();
+const { reload: reloadChildren } = useParentChildren();
+/** L'école a activé FedaPay : le parent est redirigé vers la page de paiement sécurisée. */
+const online = computed(() => !!auth.user?.online_payment);
 const target = ref(null);
 const form = reactive({ method: 'Mobile money', phone: '', amount: '' });
 const result = ref(null);
@@ -27,8 +36,12 @@ function pay(p, reload) {
 async function submit() {
   sending.value = true;
   try {
-    result.value = await parentApi.checkout(target.value.id, { method: form.method, phone: form.phone || null, amount: Number(form.amount) || null });
-    if (result.value.redirect_url) window.location.assign(result.value.redirect_url);
+    const out = await parentApi.checkout(target.value.id, { method: online.value ? 'FedaPay' : form.method, phone: form.phone || null, amount: Number(form.amount) || null });
+    if (out.redirect_url) {
+      window.location.assign(out.redirect_url);
+      return;
+    }
+    result.value = out;
     reloadFn?.();
   } catch (e) {
     ui.error(e);
@@ -36,6 +49,22 @@ async function submit() {
     sending.value = false;
   }
 }
+
+/** Retour de FedaPay : /parent/payments?payment=REC-… */
+onMounted(async () => {
+  const reference = route.query.payment;
+  if (!reference) return;
+  router.replace({ query: {} });
+  try {
+    const out = await parentApi.verifyPayment(String(reference));
+    if (out.status === 'paid') ui.toast('Paiement confirmé. Merci ! Votre reçu est disponible.');
+    else if (out.status === 'failed') ui.toast('Le paiement n’a pas abouti. Vous pouvez réessayer.', { tone: 'error' });
+    else ui.toast('Paiement en cours de confirmation par FedaPay.', { tone: 'info' });
+    reloadChildren();
+  } catch (e) {
+    ui.error(e);
+  }
+});
 </script>
 
 <template>
@@ -68,13 +97,14 @@ async function submit() {
       <p class="text-xs text-subtle">Référence : {{ result.reference }}</p>
     </div>
     <form v-else id="pay-form" class="space-y-4" @submit.prevent="submit">
-      <div class="flex flex-col gap-1"><label for="pay-method" class="label">Moyen de paiement</label><select id="pay-method" v-model="form.method" class="input"><option>Mobile money</option><option>Virement</option><option>Carte</option></select></div>
-      <div v-if="form.method === 'Mobile money'" class="flex flex-col gap-1"><label for="pay-phone" class="label">Numéro mobile money</label><input id="pay-phone" v-model="form.phone" type="tel" class="input" autocomplete="tel" /></div>
+      <p v-if="online" class="rounded-xl bg-mint p-3 text-[13px]">Paiement sécurisé par FedaPay : Mobile Money ou carte bancaire. Vous serez redirigé, puis ramené ici.</p>
+      <div v-else class="flex flex-col gap-1"><label for="pay-method" class="label">Moyen de paiement</label><select id="pay-method" v-model="form.method" class="input"><option>Mobile money</option><option>Virement</option><option>Carte</option></select></div>
+      <div v-if="online || form.method === 'Mobile money'" class="flex flex-col gap-1"><label for="pay-phone" class="label">Numéro mobile money</label><input id="pay-phone" v-model="form.phone" type="tel" class="input" autocomplete="tel" /></div>
       <div class="flex flex-col gap-1"><label for="pay-amount" class="label">Montant (FCFA)</label><input id="pay-amount" v-model="form.amount" type="number" min="1" :max="target?.remaining" class="input" /></div>
     </form>
     <template #footer>
       <button type="button" class="btn btn-secondary" @click="target = null">{{ result ? 'Fermer' : 'Annuler' }}</button>
-      <button v-if="!result" type="submit" form="pay-form" class="btn btn-primary" :disabled="sending">Continuer</button>
+      <button v-if="!result" type="submit" form="pay-form" class="btn btn-primary" :disabled="sending">{{ online ? 'Payer avec FedaPay' : 'Continuer' }}</button>
     </template>
   </BaseModal>
 </template>

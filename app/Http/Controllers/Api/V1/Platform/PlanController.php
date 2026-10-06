@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\Central\Plan;
+use App\Support\PlanFeatures;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -52,7 +53,8 @@ class PlanController extends Controller
             'max_schools' => $p->max_schools,
             'max_students' => $p->max_students,
             'max_users' => $p->max_users,
-            'features' => $p->features ?? [],
+            'features' => $features = PlanFeatures::fromLegacy($p->features ?? []),
+            'feature_labels' => array_map(fn (string $key) => PlanFeatures::MODULES[$key], $features),
             'status' => $p->status,
             'tenants_count' => (int) ($p->tenants_count ?? 0),
         ];
@@ -69,7 +71,7 @@ class PlanController extends Controller
             'max_students' => ['nullable', 'integer', 'min:1'],
             'max_users' => ['nullable', 'integer', 'min:1'],
             'features' => ['nullable', 'array'],
-            'features.*' => ['string', 'max:100'],
+            'features.*' => ['string', Rule::in(PlanFeatures::keys())],
             'status' => ['nullable', Rule::in(['active', 'inactive'])],
         ]) + ['status' => 'active'];
     }

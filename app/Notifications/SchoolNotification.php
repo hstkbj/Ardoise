@@ -4,44 +4,51 @@ namespace App\Notifications;
 
 use App\Models\Tenant\Setting;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Notification générique de l'école.
- * Toujours enregistrée en base (in-app) ; envoyée aussi par SMS / e-mail si
- * le canal est activé dans les paramètres et que le destinataire est joignable.
+ * Notification de l'école, envoyée en file d'attente.
+ *
+ * Canaux demandés par la règle de l'événement : in_app (base), email, sms.
+ * Le SMS exige le module « sms » du plan et un numéro ; l'e-mail une adresse.
  */
-class SchoolNotification extends Notification
+class SchoolNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
     /**
-     * @param  string  $type  parent | teacher | admin | system
-     * @param  bool  $urgent  envoie un SMS si le canal est actif (absences, bulletins…)
+     * @param  string  $type  attendance | grade | report_card | homework | payment | document | announcement | system
+     * @param  list<string>  $channels  in_app | email | sms
      */
     public function __construct(
         public string $title,
         public string $body,
-        public string $type = 'parent',
+        public string $type = 'system',
         public ?string $link = null,
-        public bool $urgent = false,
-    ) {}
+        public array $channels = ['in_app'],
+    ) {
+        $this->afterCommit();
+    }
 
     public function via(object $notifiable): array
     {
-        $enabled = (array) Setting::get('notifications', 'channels', ['in_app']);
-        $channels = ['database'];
+        $via = [];
 
-        if ($this->urgent && in_array('sms', $enabled, true) && $notifiable->routeNotificationFor('sms')) {
-            $channels[] = SmsChannel::class;
+        if (in_array('in_app', $this->channels, true)) {
+            $via[] = 'database';
         }
 
-        if (in_array('email', $enabled, true) && ! empty($notifiable->email)) {
-            $channels[] = 'mail';
+        if (in_array('email', $this->channels, true) && ! empty($notifiable->email)) {
+            $via[] = 'mail';
         }
 
-        return $channels;
+        if (in_array('sms', $this->channels, true) && tenant()?->hasFeature('sms') && $notifiable->routeNotificationFor('sms')) {
+            $via[] = SmsChannel::class;
+        }
+
+        return $via;
     }
 
     public function toArray(object $notifiable): array
@@ -64,6 +71,16 @@ class SchoolNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return (new MailMessage)->subject($this->title)->line($this->body);
+        $school = Setting::get('identity', 'name') ?? tenant()?->name;
+        $message = (new MailMessage)
+            ->subject($this->title.' — '.$school)
+            ->greeting('Bonjour '.$notifiable->name.',')
+            ->line($this->body);
+
+        if ($this->link && $tenant = tenant()) {
+            $message->action('Ouvrir dans '.config('app.name'), $tenant->url($this->link));
+        }
+
+        return $message->salutation($school);
     }
 }

@@ -44,6 +44,10 @@ class ParentAuthController extends Controller
             abort(423, 'L’accès à cet établissement est suspendu. Contactez l’établissement.');
         }
 
+        if (! $tenant->hasFeature('parent_portal')) {
+            abort(403, 'L’espace parent n’est pas inclus dans l’abonnement de cet établissement.');
+        }
+
         $this->tenancy->connect($tenant);
 
         $parent = ParentProfile::with('user')->find($entry->parent_profile_id);

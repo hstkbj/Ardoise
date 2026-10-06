@@ -31,7 +31,7 @@ const { data, loading, error, run } = useAsync(() => api.list().then((r) => r.da
           <div class="rounded-lg bg-ground p-2"><dt class="text-subtle">Élèves</dt><dd class="font-semibold">{{ p.max_students ? formatNumber(p.max_students) : '∞' }}</dd></div>
           <div class="rounded-lg bg-ground p-2"><dt class="text-subtle">Utilisateurs</dt><dd class="font-semibold">{{ p.max_users ?? '∞' }}</dd></div>
         </dl>
-        <ul class="mt-4 flex-1 space-y-1.5 text-sm"><li v-for="f in p.features" :key="f" class="flex gap-2"><AppIcon name="check" class="mt-0.5 size-4 text-brand-600" />{{ f }}</li></ul>
+        <ul class="mt-4 flex-1 space-y-1.5 text-sm"><li v-for="f in p.feature_labels ?? p.features" :key="f" class="flex gap-2"><AppIcon name="check" class="mt-0.5 size-4 text-brand-600" />{{ f }}</li></ul>
         <div class="mt-5 flex items-center justify-between border-t border-line-soft pt-4 text-sm">
           <span class="text-muted">{{ p.tenants_count }} tenant(s)</span>
           <RouterLink :to="`/superadmin/plans/${p.id}/edit`" class="btn btn-secondary btn-sm"><AppIcon name="edit" class="size-4" />Modifier</RouterLink>

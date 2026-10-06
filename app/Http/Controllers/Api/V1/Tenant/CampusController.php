@@ -7,6 +7,7 @@ use App\Http\Resources\CampusResource;
 use App\Models\Tenant\ActivityLog;
 use App\Models\Tenant\Campus;
 use App\Models\Tenant\Enrollment;
+use App\Services\Billing\PlanLimits;
 use App\Support\ListQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,10 +30,16 @@ class CampusController extends Controller
         ));
     }
 
-    public function store(Request $request): CampusResource
+    public function store(Request $request, PlanLimits $limits): CampusResource
     {
         $this->authorize('schools.create');
-        $campus = Campus::create($this->validated($request));
+        $data = $this->validated($request);
+
+        if (($data['status'] ?? 'active') === 'active') {
+            $limits->ensureCanAdd('schools');
+        }
+
+        $campus = Campus::create($data);
         $this->storeLogo($request, $campus);
         ActivityLog::record('campus.created', $campus);
 
@@ -65,9 +72,13 @@ class CampusController extends Controller
         return response()->json(['message' => 'Établissement supprimé.']);
     }
 
-    public function toggle(Campus $campus): CampusResource
+    public function toggle(Campus $campus, PlanLimits $limits): CampusResource
     {
         $this->authorize('schools.update');
+
+        if ($campus->status !== 'active') {
+            $limits->ensureCanAdd('schools');
+        }
         $campus->update(['status' => $campus->status === 'active' ? 'inactive' : 'active']);
 
         return new CampusResource($this->withCounts(Campus::query())->find($campus->id));

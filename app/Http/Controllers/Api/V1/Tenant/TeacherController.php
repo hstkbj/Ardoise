@@ -7,6 +7,7 @@ use App\Http\Resources\TeacherResource;
 use App\Models\Tenant\ActivityLog;
 use App\Models\Tenant\Teacher;
 use App\Services\AccountService;
+use App\Services\Billing\PlanLimits;
 use App\Support\ListQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,10 +38,11 @@ class TeacherController extends Controller
     }
 
     /** Création : un compte de connexion est créé ; s'il a un e-mail, il reçoit un lien pour choisir son mot de passe. */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, PlanLimits $limits): JsonResponse
     {
         $this->authorize('teachers.create');
         $data = $this->validated($request);
+        $limits->ensureCanAdd('users');
 
         $teacher = DB::connection('tenant')->transaction(function () use ($data) {
             $teacher = Teacher::create(collect($data)->except(['subject_ids', 'school_ids'])->all());

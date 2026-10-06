@@ -42,6 +42,7 @@ export const STATUSES = {
   // Abonnements SaaS
   trial: { label: 'Essai', tone: 'info' },
   expired: { label: 'Expiré', tone: 'danger' },
+  grace: { label: 'Délai de grâce', tone: 'warning' },
 
   // Support
   open: { label: 'Ouvert', tone: 'warning' },

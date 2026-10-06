@@ -10,6 +10,7 @@ use App\Models\Tenant\ParentProfile;
 use App\Models\Tenant\ReportCard;
 use App\Models\Tenant\Student;
 use App\Services\AccountService;
+use App\Services\Billing\PlanLimits;
 use App\Services\EnrollmentService;
 use App\Support\ListQuery;
 use App\Support\Phone;
@@ -48,10 +49,11 @@ class StudentController extends Controller
         ));
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, PlanLimits $limits): JsonResponse
     {
         $this->authorize('students.create');
         $data = $this->validated($request);
+        $limits->ensureCanAdd('students');
         $class = ClassRoom::findOrFail($data['class_id']);
         $parentCode = null;
 
@@ -141,9 +143,18 @@ class StudentController extends Controller
             'archive' => $this->enrollments->archive($student),
             'transfer' => $this->enrollments->transfer($student, $request->input('note')),
             'change-class' => $this->enrollments->changeClass($student, ClassRoom::findOrFail($request->validate(['class_id' => ['required', 'integer']])['class_id'])),
-            'restore' => $student->update(['status' => 'active']),
+            'restore' => $this->restore($student),
             default => abort(404, 'Action inconnue.'),
         };
+    }
+
+    protected function restore(Student $student): void
+    {
+        if ($student->status !== 'active') {
+            app(PlanLimits::class)->ensureCanAdd('students');
+        }
+
+        $student->update(['status' => 'active']);
     }
 
     /** Parent principal saisi dans le formulaire d'inscription : retrouvé par téléphone, sinon créé (avec son code). */

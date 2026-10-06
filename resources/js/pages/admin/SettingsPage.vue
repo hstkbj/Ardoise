@@ -4,6 +4,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/ui/PageHeader.vue';
 import TabNav from '@/components/ui/TabNav.vue';
 import FormField from '@/components/ui/FormField.vue';
+import AppIcon from '@/components/ui/AppIcon.vue';
 import LoadingState from '@/components/ui/LoadingState.vue';
 import ErrorState from '@/components/ui/ErrorState.vue';
 import { settingsApi } from '@/services/api';
@@ -47,9 +48,16 @@ const SCHOOL = {
     { key: 'decisions', label: 'Décisions proposées (une par ligne)', type: 'textarea', span: 2, rows: 6 },
   ] },
   notifications: { label: 'Notifications', fields: [
-    { key: 'channels', label: 'Canaux actifs', type: 'checkboxes', span: 2, optionsKey: 'channels' },
     { key: 'absence_notify', label: 'Prévenir les parents d’une absence', type: 'select', options: [{ value: 'immediate', label: 'Immédiatement' }, { value: 'daily', label: 'Récapitulatif quotidien' }, { value: 'never', label: 'Jamais' }] },
     { key: 'sms_sender', label: 'Expéditeur SMS', hint: '11 caractères maximum' },
+  ] },
+  notification_rules: { label: 'Destinataires', fields: [] },
+  online_payments: { label: 'Paiement en ligne', fields: [
+    { key: 'enabled', label: 'Paiement des frais en ligne par les parents', type: 'select', options: [{ value: 'no', label: 'Désactivé' }, { value: 'yes', label: 'Activé (FedaPay)' }] },
+    { key: 'environment', label: 'Environnement FedaPay', type: 'select', options: [{ value: 'sandbox', label: 'Test (sandbox)' }, { value: 'live', label: 'Production (live)' }] },
+    { key: 'public_key', label: 'Clé publique', placeholder: 'pk_live_…', span: 2 },
+    { key: 'secret_key', label: 'Clé secrète', type: 'password', placeholder: 'sk_live_…', span: 2 },
+    { key: 'webhook_secret', label: 'Secret du webhook', type: 'password', placeholder: 'wh_live_…', span: 2 },
   ] },
   finance: { label: 'Finances', fields: [
     { key: 'currency', label: 'Devise', type: 'select', options: [{ value: 'XOF', label: 'Franc CFA (XOF)' }, { value: 'XAF', label: 'Franc CFA (XAF)' }, { value: 'GNF', label: 'Franc guinéen (GNF)' }] },
@@ -84,6 +92,21 @@ const loading = ref(false);
 const error = ref(null);
 const saving = ref(false);
 const errors = ref({});
+const secretHint = (key) => (values._extra?.[`${key}_set`] ? 'Déjà enregistrée — laisser vide pour la conserver.' : '');
+const ruleGroups = computed(() => {
+  const groups = {};
+  (values._extra?.catalog?.events ?? []).forEach((e) => (groups[e.group] ??= []).push(e));
+  return groups;
+});
+function toggleRule(event, kind, value) {
+  const list = values.rules[event][kind];
+  const i = list.indexOf(value);
+  i === -1 ? list.push(value) : list.splice(i, 1);
+}
+function copy(text) {
+  navigator.clipboard?.writeText(text).then(() => ui.toast('Copié.'));
+}
+
 const readOnly = computed(() => !props.platform && !auth.can('settings.update'));
 
 async function load() {
@@ -98,6 +121,8 @@ async function load() {
       values[f.key] = f.type === 'file' ? null : f.type === 'checkboxes' ? (Array.isArray(v) ? v : []) : v ?? '';
     });
     values._logo = data?.logo ?? null;
+    values._extra = data;
+    if (tab.value === 'notification_rules') values.rules = JSON.parse(JSON.stringify(data.rules));
   } catch (e) {
     error.value = e;
   } finally {
@@ -132,8 +157,39 @@ async function save() {
     <div v-else-if="error" class="card"><ErrorState :message="error.message" @retry="load" /></div>
     <form v-else class="card space-y-5 p-5 sm:p-6" novalidate @submit.prevent="save">
       <div v-if="tab === 'identity' && values._logo" class="flex items-center gap-3"><img :src="values._logo" alt="Logo actuel" class="size-14 rounded-lg border border-line object-contain" /><span class="text-sm text-muted">Logo actuel</span></div>
-      <fieldset :disabled="readOnly" class="grid gap-4 sm:grid-cols-2">
-        <FormField v-for="f in sections[tab].fields" :key="f.key" v-model="values[f.key]" :field="f" :error="errors[f.key]" />
+      <template v-if="tab === 'online_payments'">
+        <p v-if="values._extra?.available === false" class="rounded-xl bg-warn-50 p-4 text-sm text-warn-700">Le paiement en ligne n’est pas inclus dans votre abonnement. <RouterLink to="/admin/billing" class="font-semibold underline">Voir les formules</RouterLink></p>
+        <div class="rounded-xl bg-ground p-4 text-sm text-body">
+          <p>Les parents paient les frais par Mobile Money ou carte ; l’argent arrive <b>directement sur le compte FedaPay de l’école</b>. Les clés se trouvent dans votre tableau de bord FedaPay → Paramètres → Clés API.</p>
+          <p class="mt-3 text-xs text-muted">Déclarez ce webhook dans FedaPay (événements « transaction.* »), puis copiez son secret ci-dessous :</p>
+          <div class="mt-1 flex items-center gap-2"><code class="min-w-0 flex-1 truncate rounded bg-white px-2 py-1.5 text-xs">{{ values._extra?.webhook_url }}</code><button type="button" class="btn btn-secondary btn-sm" @click="copy(values._extra?.webhook_url)"><AppIcon name="copy" class="size-4" />Copier</button></div>
+        </div>
+      </template>
+
+      <div v-if="tab === 'notification_rules' && values.rules" class="space-y-6">
+        <p class="text-sm text-muted">Choisissez qui est prévenu pour chaque événement, et par quel canal. Les notifications partent en arrière-plan. Les annonces ont leurs propres destinataires, choisis à la publication.</p>
+        <p v-if="!values._extra.sms_available" class="rounded-xl bg-ground p-3 text-xs text-muted">Les SMS ne sont pas inclus dans votre abonnement : ce canal est ignoré.</p>
+        <fieldset v-for="(events, group) in ruleGroups" :key="group" :disabled="readOnly" class="space-y-3">
+          <legend class="text-xs font-semibold tracking-wide text-subtle uppercase">{{ group }}</legend>
+          <div v-for="e in events" :key="e.key" class="rounded-xl border border-line p-4">
+            <p class="text-sm font-semibold">{{ e.label }}</p>
+            <div class="mt-3 flex flex-wrap gap-2" role="group" :aria-label="`Destinataires : ${e.label}`">
+              <label v-for="r in values._extra.catalog.recipients" :key="r.value" class="flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-[13px]" :class="values.rules[e.key].recipients.includes(r.value) ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-line text-body'">
+                <input type="checkbox" class="sr-only" :checked="values.rules[e.key].recipients.includes(r.value)" @change="toggleRule(e.key, 'recipients', r.value)" />{{ r.label }}
+              </label>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center gap-4 border-t border-line-soft pt-3 text-[13px]" role="group" :aria-label="`Canaux : ${e.label}`">
+              <span class="text-xs text-subtle">Canaux</span>
+              <label v-for="c in values._extra.catalog.channels" :key="c.value" class="flex items-center gap-1.5" :class="c.value === 'sms' && !values._extra.sms_available ? 'opacity-50' : ''">
+                <input type="checkbox" class="size-4 accent-brand-600" :checked="values.rules[e.key].channels.includes(c.value)" @change="toggleRule(e.key, 'channels', c.value)" />{{ c.label }}
+              </label>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+
+      <fieldset v-if="sections[tab].fields.length" :disabled="readOnly" class="grid gap-4 sm:grid-cols-2">
+        <FormField v-for="f in sections[tab].fields" :key="f.key" v-model="values[f.key]" :field="f.type === 'password' ? { ...f, hint: secretHint(f.key) || f.hint } : f" :error="errors[f.key]" />
       </fieldset>
       <div v-if="!readOnly" class="flex justify-end"><button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button></div>
     </form>

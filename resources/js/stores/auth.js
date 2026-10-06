@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { csrf, onUnauthorized } from '@/services/http';
+import { csrf, onPaymentRequired, onUnauthorized } from '@/services/http';
 import { authApi } from '@/services/api';
 import { useOptionsStore } from './options';
 import { resetParentChildren } from '@/composables/useParentChildren';
@@ -51,6 +51,15 @@ export const useAuthStore = defineStore('auth', () => {
     return keys.some((k) => roles.value.includes(k));
   }
 
+  /** Module inclus dans le plan de l'école (pas de restriction pour la plateforme). */
+  function hasFeature(feature) {
+    if (!feature || isPlatform.value) return true;
+    return (user.value?.features || []).includes(feature);
+  }
+
+  const subscription = computed(() => user.value?.subscription ?? null);
+  const requiresPayment = computed(() => !!subscription.value?.requires_payment);
+
   function can(permission) {
     if (!permission) return true;
     const perms = user.value?.permissions || [];
@@ -72,7 +81,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function afterLogin() {
-    if (user.value && !isPlatform.value && hasRole(...STAFF_ROLES, 'teacher')) {
+    if (user.value && !isPlatform.value && !requiresPayment.value && hasRole(...STAFF_ROLES, 'teacher')) {
       await useOptionsStore().load().catch(() => {});
     }
   }
@@ -118,6 +127,17 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = { ...user.value, ...data };
   }
 
+  // Abonnement expiré en cours de session : l'administrateur va payer, les autres sont déconnectés
+  onPaymentRequired(async () => {
+    if (hasRole('school_admin')) {
+      await refresh();
+      if (!window.location.pathname.startsWith('/admin/billing')) window.location.assign('/admin/billing');
+      return;
+    }
+    user.value = null;
+    window.location.assign('/login?expired=1');
+  });
+
   onUnauthorized(() => {
     if (user.value) {
       user.value = null;
@@ -125,5 +145,13 @@ export const useAuthStore = defineStore('auth', () => {
     }
   });
 
-  return { user, loading, isAuthenticated, role, roles, homePath, isPlatform, hasRole, can, init, login, loginWithCode, logout, setUser };
+  async function refresh() {
+    try {
+      user.value = isPlatform.value ? await authApi.platformMe() : await authApi.me();
+    } catch {
+      /* session expirée : géré par l'intercepteur */
+    }
+  }
+
+  return { user, loading, isAuthenticated, role, roles, homePath, isPlatform, subscription, requiresPayment, hasRole, hasFeature, can, init, refresh, login, loginWithCode, logout, setUser };
 });

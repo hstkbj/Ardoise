@@ -107,6 +107,14 @@ export const notificationsApi = {
   readAll: () => http.post('/notifications/read-all'),
 };
 
+export const billingApi = {
+  /** GET /billing — abonnement de l'école, plans, consommation, historique */
+  get: () => http.get('/billing').then(data),
+  /** POST /billing/checkout { plan_id, periods } → { reference, url } (page FedaPay) */
+  checkout: (payload) => http.post('/billing/checkout', payload).then(data),
+  verify: (reference) => http.post('/billing/verify', { reference }).then(data),
+};
+
 export const parentApi = {
   children: () => http.get('/parent/children').then(data),
   announcements: () => http.get('/parent/announcements').then(data),
@@ -116,6 +124,7 @@ export const parentApi = {
   justify: (attendanceId, payload) => send('post', `/parent/attendance/${attendanceId}/justify`, payload),
   homeworkDone: (homeworkId, studentId, done) => http.post(`/parent/homework/${homeworkId}/done`, { student_id: studentId, done }).then((r) => r.data),
   checkout: (assignmentId, payload) => http.post(`/parent/payments/${assignmentId}/checkout`, payload).then(data),
+  verifyPayment: (reference) => http.post('/parent/payments/verify', { reference }).then(data),
 };
 
 export const supportApi = {
@@ -127,6 +136,7 @@ export const supportApi = {
 
 export const platformApi = {
   tenantAction: (id, action) => http.post(`/platform/tenants/${id}/${action}`).then((r) => r.data),
+  resendCredentials: (id) => http.post(`/platform/tenants/${id}/resend-credentials`).then((r) => r.data),
   tenantStats: (id) => http.get(`/platform/tenants/${id}/stats`).then(data),
 };
 

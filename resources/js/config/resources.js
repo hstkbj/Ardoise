@@ -637,16 +637,17 @@ export const RESOURCES = {
       { key: 'students_count', label: 'Élèves', type: 'number', align: 'right' },
       { key: 'created_at', label: 'Créé le', type: 'date', sortable: true },
       { key: 'expires_at', label: 'Expire le', type: 'date', sortable: true },
-      { key: 'status', label: 'Statut', type: 'status' },
+      { key: 'billing_state', label: 'Abonnement', type: 'status' },
     ],
     filters: [
       { key: 'plan', label: 'Plan', optionsKey: 'plans' },
       { key: 'status', label: 'Statut', ...s(['active', 'trial', 'suspended']) },
     ],
-    rowActions: ['view', 'edit', 'suspend', 'activate'],
+    rowActions: ['view', 'edit', 'resend-credentials', 'suspend', 'activate'],
     customActions: {
       suspend: { label: 'Suspendre', icon: 'lock', danger: true, confirm: 'Les utilisateurs de ce tenant ne pourront plus se connecter.' },
       activate: { label: 'Activer', icon: 'unlock' },
+      'resend-credentials': { label: 'Renvoyer les identifiants', icon: 'mail', confirm: 'Un nouveau mot de passe est généré pour l’administrateur et lui est envoyé par e-mail ; l’ancien ne fonctionnera plus.' },
     },
     form: [
       {
@@ -744,7 +745,8 @@ export const RESOURCES = {
             label: 'Modules',
             type: 'checkboxes',
             span: 2,
-            options: ['Notes et bulletins', 'Absences', 'Espace parent', 'Tout Essentiel', 'Frais et paiements', 'Emplois du temps', 'Notifications SMS', 'Tout Établissement', 'Tableaux consolidés', 'Support prioritaire'].map((v) => ({ value: v, label: v })),
+            optionsKey: 'modules',
+            hint: 'Les écoles n’ont accès qu’aux modules cochés. Le socle (élèves, classes, enseignants, annonces) est toujours inclus.',
           },
         ],
       },
