@@ -180,6 +180,7 @@ const routes = [
       { path: 'analytics', component: p.analytics, meta: { title: 'Statistiques' } },
       ...resourceRoutes('usage', 'platform/usage', { base: `${S}/usage`, only: ['index'] }),
       ...resourceRoutes('tenants', 'platform/tenants', { base: `${S}/tenants` }),
+      ...resourceRoutes('demo-requests', 'platform/demo-requests', { base: `${S}/demo-requests`, only: ['index'] }),
       ...resourceRoutes('schools', 'platform/schools', { base: `${S}/schools`, only: ['index'] }),
       ...resourceRoutes('users', 'platform/users', { base: `${S}/users`, only: ['index'] }),
       ...resourceRoutes('plans', 'platform/plans', { base: `${S}/plans`, index: p.plans, only: ['index', 'create', 'edit'] }),

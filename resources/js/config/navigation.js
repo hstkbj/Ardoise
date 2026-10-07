@@ -130,6 +130,7 @@ export const SUPERADMIN_NAV = [
     label: 'Relation client',
     items: [
       { label: 'Support', to: '/superadmin/tickets', icon: 'help' },
+      { label: 'Demandes de démo', to: '/superadmin/demo-requests', icon: 'mail' },
       { label: 'Annonces', to: '/superadmin/announcements', icon: 'megaphone' },
       { label: 'Paramètres', to: '/superadmin/settings', icon: 'sliders' },
       { label: 'Guide d’utilisation', to: '/guide?pour=plateforme', icon: 'book' },

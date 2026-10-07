@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Central\FedaPayWebhookController;
 use App\Http\Controllers\Api\V1\Central\PublicController;
 use App\Http\Controllers\Api\V1\Parent\ParentPortalController;
 use App\Http\Controllers\Api\V1\Platform\BillingController;
+use App\Http\Controllers\Api\V1\Platform\DemoRequestController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
 use App\Http\Controllers\Api\V1\Platform\PlatformAuthController;
 use App\Http\Controllers\Api\V1\Platform\PlatformController;
@@ -59,6 +60,7 @@ Route::prefix('platform')->middleware('central')->group(function () {
         Route::get('usage', [PlatformController::class, 'usage']);
         Route::get('schools', [PlatformController::class, 'schools']);
         Route::get('users', [PlatformController::class, 'users']);
+        Route::get('demo-requests', [DemoRequestController::class, 'index']);
 
         Route::post('tenants/{tenant}/suspend', [TenantController::class, 'suspend']);
         Route::post('tenants/{tenant}/activate', [TenantController::class, 'activate']);

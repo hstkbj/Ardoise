@@ -675,6 +675,28 @@ export const RESOURCES = {
     ],
   },
 
+  'platform/demo-requests': {
+    endpoint: 'platform/demo-requests',
+    title: 'Demandes de démonstration',
+    singular: 'demande',
+    searchPlaceholder: 'Nom, établissement, e-mail ou téléphone…',
+    emptyText: 'Aucune demande de démonstration pour le moment.',
+    titleField: 'school',
+    columns: [
+      { key: 'school', label: 'Établissement', type: 'person', sub: 'city', sortable: true },
+      { key: 'name', label: 'Contact' },
+      { key: 'role', label: 'Fonction' },
+      { key: 'email', label: 'E-mail' },
+      { key: 'phone', label: 'Téléphone' },
+      { key: 'students', label: 'Élèves' },
+      { key: 'sites', label: 'Sites', type: 'number' },
+      { key: 'message', label: 'Message' },
+      { key: 'created_at', label: 'Reçue le', type: 'datetime', sortable: true },
+    ],
+    filters: [],
+    rowActions: [],
+  },
+
   'platform/schools': {
     endpoint: 'platform/schools',
     title: 'Écoles',

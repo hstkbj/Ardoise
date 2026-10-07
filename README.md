@@ -160,7 +160,7 @@ Préfixe `/api/v1`, réponses JSON. Listes : `?search=&page=&per_page=&sort=-cha
 | Administration | CRUD `users`, `roles` (+`permissions`), `GET permissions`, `settings/{section}` |
 | Enseignant | `teacher/dashboard`, `teacher/classes` |
 | Parent | `parent/children`, `parent/children/{id}`, `parent/announcements`, `parent/documents`, `parent/document-requests`, `parent/timetable`, `parent/attendance/{id}/justify`, `parent/homework/{id}/done`, `parent/payments/{id}/checkout` |
-| Plateforme | `platform/dashboard`, `platform/tenants` (+`suspend`, `activate`, `stats`), `platform/plans`, `platform/subscriptions`, `platform/payments`, `platform/usage`, `platform/schools`, `platform/users`, `platform/tickets`, `platform/announcements`, `platform/settings/{section}` |
+| Plateforme | `platform/dashboard`, `platform/demo-requests`, `platform/tenants` (+`suspend`, `activate`, `stats`), `platform/plans`, `platform/subscriptions`, `platform/payments`, `platform/usage`, `platform/schools`, `platform/users`, `platform/tickets`, `platform/announcements`, `platform/settings/{section}` |
 
 Liste complète : `php artisan route:list --path=api`.
 
