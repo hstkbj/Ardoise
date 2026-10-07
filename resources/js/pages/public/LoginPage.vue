@@ -115,5 +115,6 @@ async function submit() {
     </form>
 
     <p v-if="profile === 'parent'" class="mt-6 text-center text-[13px] text-muted">Code perdu ? Demandez-en un nouveau au secrétariat : l’ancien sera désactivé.</p>
+    <p class="mt-4 text-center text-[13px]"><RouterLink :to="{ path: '/guide', query: { pour: profile === 'parent' ? 'parent' : 'ecole' } }" class="link">Besoin d’aide ? Consultez le guide d’utilisation</RouterLink></p>
   </div>
 </template>

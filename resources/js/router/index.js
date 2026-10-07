@@ -17,6 +17,7 @@ const p = {
   features: () => import('@/pages/public/FeaturesPage.vue'),
   pricing: () => import('@/pages/public/PricingPage.vue'),
   contact: () => import('@/pages/public/ContactPage.vue'),
+  guide: () => import('@/pages/public/GuidePage.vue'),
   login: () => import('@/pages/public/LoginPage.vue'),
   forgot: () => import('@/pages/public/ForgotPasswordPage.vue'),
   reset: () => import('@/pages/public/ResetPasswordPage.vue'),
@@ -75,6 +76,7 @@ const routes = [
       { path: 'features', component: p.features, meta: { title: 'Fonctionnalités' } },
       { path: 'pricing', component: p.pricing, meta: { title: 'Tarifs' } },
       { path: 'contact', component: p.contact, meta: { title: 'Contact' } },
+      { path: 'guide', component: p.guide, meta: { title: 'Guide d’utilisation', allowWhenExpired: true } },
     ],
   },
   {

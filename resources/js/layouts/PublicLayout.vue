@@ -15,6 +15,7 @@ const sending = ref(false);
 const links = [
   { label: 'Fonctionnalités', to: '/features' },
   { label: 'Tarifs', to: '/pricing' },
+  { label: 'Guide', to: '/guide' },
   { label: 'Contact', to: '/contact' },
 ];
 

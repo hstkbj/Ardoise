@@ -50,6 +50,7 @@ export const ADMIN_NAV = [
       { label: 'Rôles et permissions', to: '/admin/roles', icon: 'key', permission: 'roles.view' },
       { label: 'Abonnement', to: '/admin/billing', icon: 'refresh', roles: ['school_admin', 'director'] },
       { label: 'Support', to: '/admin/support', icon: 'help' },
+      { label: 'Guide d’utilisation', to: '/guide?pour=ecole', icon: 'book' },
       { label: 'Paramètres', to: '/admin/settings', icon: 'sliders', permission: 'settings.view' },
     ],
   },
@@ -79,6 +80,7 @@ export const TEACHER_NAV = [
     items: [
       { label: 'Notifications', to: '/teacher/notifications', icon: 'bell' },
       { label: 'Mon profil', to: '/profile', icon: 'user' },
+      { label: 'Guide d’utilisation', to: '/guide?pour=enseignant', icon: 'book' },
     ],
   },
 ];
@@ -96,6 +98,7 @@ export const PARENT_NAV = [
   { label: 'Documents', to: '/parent/documents', icon: 'folder', feature: 'documents' },
   { label: 'Alertes', to: '/parent/notifications', icon: 'bell', mobile: true },
   { label: 'Profil', to: '/profile', icon: 'user', mobile: true },
+  { label: 'Aide', to: '/guide?pour=parent', icon: 'help' },
 ];
 
 export const SUPERADMIN_NAV = [
@@ -129,6 +132,7 @@ export const SUPERADMIN_NAV = [
       { label: 'Support', to: '/superadmin/tickets', icon: 'help' },
       { label: 'Annonces', to: '/superadmin/announcements', icon: 'megaphone' },
       { label: 'Paramètres', to: '/superadmin/settings', icon: 'sliders' },
+      { label: 'Guide d’utilisation', to: '/guide?pour=plateforme', icon: 'book' },
     ],
   },
 ];
