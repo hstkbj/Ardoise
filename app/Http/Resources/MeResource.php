@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Services\Billing\SubscriptionBilling;
 use App\Services\Payments\SchoolFedaPay;
+use App\Support\SecurityPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -36,6 +37,8 @@ class MeResource extends JsonResource
             // État de l'abonnement (personnel uniquement) : bandeaux, blocage, page Abonnement
             'subscription' => $tenant && $this->isStaff() ? app(SubscriptionBilling::class)->summary($tenant) : null,
             'online_payment' => $tenant && $this->hasRole('parent') ? app(SchoolFedaPay::class)->isEnabled() : false,
+            // Mot de passe provisoire, double authentification
+            'security' => SecurityPolicy::summary($this->resource),
         ];
     }
 }

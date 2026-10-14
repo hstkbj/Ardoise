@@ -26,6 +26,7 @@ final class PermissionCatalog
         'users' => ['Utilisateurs', ['view', 'create', 'update', 'delete']],
         'roles' => ['Rôles', ['view', 'create', 'update', 'delete']],
         'settings' => ['Paramètres', ['view', 'update']],
+        'activity_log' => ['Journal d’activité', ['view']],
     ];
 
     public const ACTION_LABELS = [
@@ -67,7 +68,7 @@ final class PermissionCatalog
         return [
             'school_admin' => ['*'],
             'director' => array_merge(
-                $view('schools', 'academic_years', 'classes', 'students', 'parents', 'teachers', 'subjects', 'fees', 'payments', 'documents', 'users'),
+                $view('schools', 'academic_years', 'classes', 'students', 'parents', 'teachers', 'subjects', 'fees', 'payments', 'documents', 'users', 'activity_log'),
                 $all('assessments'), $all('grades'), $all('report_cards'), $all('attendance'), $all('announcements'), $all('timetable'), $all('homework'),
             ),
             'academic_manager' => array_merge(

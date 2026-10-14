@@ -7,11 +7,13 @@ use App\Models\Central\Plan;
 use App\Models\Central\SubscriptionPayment;
 use App\Services\Billing\PlanLimits;
 use App\Services\Billing\SubscriptionBilling;
+use App\Services\Billing\SubscriptionInvoice;
 use App\Services\Payments\FedaPay\FedaPayClient;
 use App\Services\Payments\FedaPay\FedaPayException;
 use App\Support\PlanFeatures;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 
 /**
@@ -88,12 +90,19 @@ class BillingController extends Controller
         ]]);
     }
 
+    /** GET /billing/payments/{id}/invoice : facture d'un paiement de l'école. */
+    public function invoice(int $payment, SubscriptionInvoice $invoices): Response
+    {
+        return $invoices->download(SubscriptionPayment::where('tenant_id', tenant()->id)->findOrFail($payment));
+    }
+
     /** @return array<string, mixed> */
     protected function presentPayment(SubscriptionPayment $payment): array
     {
         return [
             'id' => $payment->id,
             'reference' => $payment->reference,
+            'invoice_number' => $payment->invoice_number,
             'plan' => $payment->plan?->name,
             'amount' => $payment->amount,
             'months' => $payment->months,

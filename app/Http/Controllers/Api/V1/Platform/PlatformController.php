@@ -9,6 +9,7 @@ use App\Models\Central\Subscription;
 use App\Models\Central\SubscriptionPayment;
 use App\Models\Central\Tenant;
 use App\Models\Central\UsageSnapshot;
+use App\Services\PlatformAlerts;
 use App\Support\ListQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -135,12 +136,19 @@ class PlatformController extends Controller
 
     public function settings(string $section): JsonResponse
     {
-        return response()->json(['data' => PlatformSetting::where('section', $section)->first()?->values ?? []]);
+        // Valeurs par défaut des sections qui pilotent un comportement
+        $defaults = match ($section) {
+            'alerts' => ['events' => array_keys(PlatformAlerts::EVENTS), 'mail' => 'yes', 'emails' => ''],
+            'security' => ['require_2fa_platform' => 'no', 'require_2fa_school_admins' => 'no'],
+            default => [],
+        };
+
+        return response()->json(['data' => array_merge($defaults, PlatformSetting::where('section', $section)->first()?->values ?? [])]);
     }
 
     public function updateSettings(Request $request, string $section): JsonResponse
     {
-        abort_unless(in_array($section, ['identity', 'saas', 'email', 'notifications', 'plans', 'payments', 'security'], true), 404);
+        abort_unless(in_array($section, ['identity', 'saas', 'email', 'notifications', 'plans', 'payments', 'security', 'alerts', 'invoicing'], true), 404);
         $values = collect($request->except(['logo']))->map(fn ($v) => is_string($v) ? mb_substr($v, 0, 2000) : $v)->all();
         $row = PlatformSetting::updateOrCreate(['section' => $section], ['values' => $values]);
 

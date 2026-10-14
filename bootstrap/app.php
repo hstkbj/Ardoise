@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\CentralDomainOnly;
+use App\Http\Middleware\EnsureAccountIsSecured;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureTenantIsActive;
 use App\Http\Middleware\EnsureUserBelongsToTenant;
@@ -31,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'central' => CentralDomainOnly::class,
             'role' => EnsureRole::class,
             'feature' => RequirePlanFeature::class,
+            'account.secured' => EnsureAccountIsSecured::class,
         ]);
 
         // Connecter la base de l'école avant que la session DB recharge son utilisateur.

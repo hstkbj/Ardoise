@@ -149,6 +149,13 @@ export const RESOURCES = {
     emptyText: 'Aucun élève trouvé.',
     titleField: 'full_name',
     afterCreate: 'show',
+    exportPermission: 'students.export',
+    import: {
+      endpoint: 'imports/students',
+      template: '/imports/students/template',
+      permission: 'students.create',
+      help: 'Colonnes obligatoires : Nom, Prénoms, Classe (nom exact, ex. « 6e A » ; ajoutez l’Établissement si plusieurs ont la même classe). Un matricule déjà connu met la fiche à jour. Un parent est retrouvé par son téléphone, sinon créé avec son code d’accès. Dates au format JJ/MM/AAAA.',
+    },
     columns: [
       { key: 'full_name', label: 'Élève', type: 'person', sub: 'matricule', sortable: true },
       { key: 'class_name', label: 'Classe' },
@@ -491,6 +498,15 @@ export const RESOURCES = {
     searchPlaceholder: 'Reçu, élève, frais…',
     emptyText: 'Aucune échéance trouvée.',
     titleField: 'fee_name',
+    exportPermission: 'payments.export',
+    import: {
+      endpoint: 'imports/payments',
+      template: '/imports/payments/template',
+      permission: 'payments.create',
+      title: 'Importer des paiements',
+      help: 'Une ligne par encaissement : Matricule, Frais (nom exact, ex. « Scolarité »), Montant ; Mode (Espèces, Mobile money, Virement, Chèque, Carte), Date (JJ/MM/AAAA) et Référence sont facultatifs. Chaque montant est réparti sur les échéances les plus anciennes ; il ne peut pas dépasser le reste dû.',
+      option: { key: 'notify', label: 'Prévenir les parents (notification de paiement reçu)' },
+    },
     columns: [
       { key: 'reference', label: 'Reçu' },
       { key: 'student_name', label: 'Élève', type: 'person', sub: 'class_name' },
@@ -618,6 +634,38 @@ export const RESOURCES = {
         ],
       },
     ],
+  },
+
+  'activity-log': {
+    endpoint: 'activity-log',
+    permission: 'activity_log',
+    title: 'Journal d’activité',
+    singular: 'événement',
+    canCreate: false,
+    searchPlaceholder: 'Utilisateur, action ou adresse IP…',
+    emptyText: 'Aucune activité enregistrée pour ces critères.',
+    titleField: 'action_label',
+    exportName: 'journal-activite',
+    columns: [
+      { key: 'created_at', label: 'Date', type: 'datetime', sortable: true },
+      { key: 'user_name', label: 'Utilisateur', type: 'person', sub: 'user_email' },
+      { key: 'action_label', label: 'Action' },
+      { key: 'subject_label', label: 'Objet' },
+      { key: 'details', label: 'Détails' },
+      { key: 'ip_address', label: 'Adresse IP' },
+    ],
+    filters: [
+      {
+        key: 'group',
+        label: 'Type',
+        options: [
+          ['login', 'Connexions'], ['security', 'Sécurité des comptes'], ['student', 'Élèves'], ['parent', 'Parents'], ['teacher', 'Enseignants'],
+          ['assessment', 'Notes et évaluations'], ['report_cards', 'Bulletins'], ['payment', 'Paiements'], ['user', 'Utilisateurs'],
+          ['role', 'Rôles et permissions'], ['settings', 'Paramètres'], ['import', 'Imports'],
+        ].map(([value, label]) => ({ value, label })),
+      },
+    ],
+    rowActions: [],
   },
 
   // ------------------------------------------------------------- Plateforme
@@ -803,6 +851,7 @@ export const RESOURCES = {
     titleField: 'reference',
     columns: [
       { key: 'reference', label: 'Référence' },
+      { key: 'invoice_number', label: 'Facture' },
       { key: 'customer', label: 'Client', type: 'person', sub: 'tenant_name' },
       { key: 'plan', label: 'Plan' },
       { key: 'amount', label: 'Montant', type: 'money', align: 'right', sortable: true },
@@ -811,7 +860,7 @@ export const RESOURCES = {
       { key: 'status', label: 'Statut', type: 'status' },
     ],
     filters: [{ key: 'status', label: 'Statut', ...s(['paid', 'pending', 'failed']) }],
-    rowActions: [],
+    rowActions: ['invoice'],
   },
 
   'platform/usage': {

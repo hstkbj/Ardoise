@@ -20,6 +20,7 @@ const http = axios.create({
 
 let unauthorizedHandler = () => {};
 let paymentRequiredHandler = () => {};
+let securityRequiredHandler = () => {};
 
 export function onUnauthorized(fn) {
   unauthorizedHandler = fn;
@@ -28,6 +29,11 @@ export function onUnauthorized(fn) {
 /** 402 : abonnement de l'école expiré (seul l'administrateur peut renouveler). */
 export function onPaymentRequired(fn) {
   paymentRequiredHandler = fn;
+}
+
+/** 403 : mot de passe provisoire à changer, ou double authentification à activer. */
+export function onSecurityRequired(fn) {
+  securityRequiredHandler = fn;
 }
 
 /** À appeler avant une connexion (cookie XSRF-TOKEN). */
@@ -41,6 +47,7 @@ http.interceptors.response.use(
     const status = error.response?.status;
     if (status === 401 && !error.config?.skipAuthRedirect) unauthorizedHandler();
     if (status === 402 && error.response?.data?.code === 'subscription_expired' && !error.config?.url?.includes('/auth/login')) paymentRequiredHandler();
+    if (status === 403 && ['password_change_required', 'two_factor_setup_required'].includes(error.response?.data?.code)) securityRequiredHandler(error.response.data.code);
     // Format Laravel : { message, errors: { champ: ['…'] } }
     const errors = error.response?.data?.errors || {};
     const firstError = Object.values(errors)[0]?.[0];
@@ -51,6 +58,8 @@ http.interceptors.response.use(
           ? firstError
           : error.response?.data?.message || (status ? 'Une erreur est survenue. Réessayez.' : 'Connexion au serveur impossible.'),
       errors,
+      code: error.response?.data?.code,
+      lines: error.response?.data?.lines || [],
     };
     return Promise.reject(normalized);
   },

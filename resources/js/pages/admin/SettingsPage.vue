@@ -82,6 +82,32 @@ const PLATFORM = {
     { key: 'sender', label: 'Expéditeur par défaut' },
     { key: 'monthly_quota', label: 'Quota mensuel par école', type: 'number' },
   ] },
+  security: { label: 'Sécurité', fields: [
+    { key: 'require_2fa_platform', label: 'Double authentification obligatoire pour les superadmins', type: 'select', options: yesNo },
+    { key: 'require_2fa_school_admins', label: 'Double authentification obligatoire pour les administrateurs et directeurs d’école', type: 'select', options: yesNo, hint: 'Les comptes concernés devront l’activer à leur prochaine action.' },
+  ] },
+  alerts: { label: 'Alertes', fields: [
+    { key: 'events', label: 'Événements signalés aux superadmins', type: 'checkboxes', span: 2, options: [
+      { value: 'subscription.paid', label: 'Paiement d’abonnement reçu' },
+      { value: 'subscription.payment_failed', label: 'Paiement d’abonnement échoué' },
+      { value: 'subscription.ending', label: 'Abonnement bientôt expiré' },
+      { value: 'subscription.grace', label: 'Abonnement en délai de grâce' },
+      { value: 'subscription.expired', label: 'Abonnement expiré (école bloquée)' },
+      { value: 'backup.failed', label: 'Échec de sauvegarde' },
+    ] },
+    { key: 'mail', label: 'Recevoir aussi les alertes par e-mail', type: 'select', options: yesNo },
+    { key: 'emails', label: 'Autres destinataires', placeholder: 'compta@ardoise.app, astreinte@ardoise.app', hint: 'E-mails séparés par des virgules.' },
+  ] },
+  invoicing: { label: 'Facturation', fields: [
+    { key: 'company_name', label: 'Raison sociale' },
+    { key: 'tax_id', label: 'IFU / NIF' },
+    { key: 'registration', label: 'RCCM' },
+    { key: 'vat_rate', label: 'Taux de TVA (%)', type: 'number', hint: '0 ou vide : « TVA non applicable » sur les factures.' },
+    { key: 'email', label: 'E-mail de facturation', type: 'email' },
+    { key: 'phone', label: 'Téléphone', type: 'tel' },
+    { key: 'address', label: 'Adresse', type: 'textarea', span: 2, rows: 3 },
+    { key: 'footer', label: 'Mention en bas de facture', type: 'textarea', span: 2, rows: 2 },
+  ] },
 };
 
 const sections = props.platform ? PLATFORM : SCHOOL;

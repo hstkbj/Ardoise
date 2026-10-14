@@ -2,6 +2,7 @@
 import { reactive, ref } from 'vue';
 import PageHeader from '@/components/ui/PageHeader.vue';
 import Avatar from '@/components/ui/Avatar.vue';
+import AppIcon from '@/components/ui/AppIcon.vue';
 import { useAuthStore, ROLE_LABELS } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
 import { profileApi } from '@/services/api';
@@ -38,8 +39,9 @@ async function savePassword() {
   if (pass.password !== pass.password_confirmation) return (passErrors.errors.value = { password_confirmation: 'Les mots de passe ne correspondent pas.' });
   savingPass.value = true;
   try {
-    await profileApi.password(pass);
+    const out = await profileApi.password(pass);
     Object.assign(pass, { current: '', password: '', password_confirmation: '' });
+    if (out?.data) auth.setUser(out.data);
     ui.toast('Mot de passe modifié.');
   } catch (e) {
     passErrors.setServerErrors(e.errors);
@@ -86,5 +88,13 @@ async function savePassword() {
       </div>
       <div class="flex justify-end"><button type="submit" class="btn btn-primary" :disabled="savingPass">Modifier le mot de passe</button></div>
     </form>
+
+    <section v-if="auth.security?.two_factor_available" class="card flex flex-wrap items-center gap-4 p-5">
+      <div class="min-w-0 flex-1">
+        <h2 class="card-title">Double authentification</h2>
+        <p class="mt-1 text-sm text-muted">{{ auth.security.two_factor_enabled ? 'Active : un code de votre téléphone est demandé à chaque connexion.' : 'Protégez votre compte avec un code à 6 chiffres généré sur votre téléphone.' }}</p>
+      </div>
+      <RouterLink to="/security" class="btn btn-secondary"><AppIcon name="shield" class="size-4" />{{ auth.security.two_factor_enabled ? 'Gérer' : 'Activer' }}</RouterLink>
+    </section>
   </div>
 </template>

@@ -6,14 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentResource;
 use App\Models\Tenant\ActivityLog;
 use App\Models\Tenant\ClassRoom;
-use App\Models\Tenant\ParentProfile;
 use App\Models\Tenant\ReportCard;
 use App\Models\Tenant\Student;
 use App\Services\AccountService;
 use App\Services\Billing\PlanLimits;
 use App\Services\EnrollmentService;
 use App\Support\ListQuery;
-use App\Support\Phone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -70,7 +68,7 @@ class StudentController extends Controller
 
             $this->storePhoto($request, $student);
             $this->enrollments->enroll($student, $class, $data['enrolled_on'] ?? null);
-            $parentCode = $this->attachGuardian($student, $data);
+            $parentCode = $this->accounts->attachGuardian($student, $data);
 
             return $student;
         });
@@ -155,37 +153,6 @@ class StudentController extends Controller
         }
 
         $student->update(['status' => 'active']);
-    }
-
-    /** Parent principal saisi dans le formulaire d'inscription : retrouvé par téléphone, sinon créé (avec son code). */
-    protected function attachGuardian(Student $student, array $data): ?string
-    {
-        if (! empty($data['guardian_id'])) {
-            $student->parents()->syncWithoutDetaching([$data['guardian_id'] => ['relation' => $data['guardian_relation'] ?? null, 'is_primary' => true]]);
-
-            return null;
-        }
-
-        if (empty($data['guardian_name'])) {
-            return null;
-        }
-
-        $phone = Phone::normalize($data['guardian_phone'] ?? null);
-        $parent = $phone
-            ? ParentProfile::get()->first(fn ($p) => Phone::normalize($p->phone) === $phone)
-            : null;
-        $code = null;
-
-        if (! $parent) {
-            $parts = preg_split('/\s+/', trim($data['guardian_name']));
-            $first = count($parts) > 1 ? implode(' ', array_slice($parts, 0, -1)) : $parts[0];
-            $last = count($parts) > 1 ? end($parts) : '';
-            [$parent, $code] = $this->accounts->createParent(['first_name' => $first, 'last_name' => $last, 'phone' => $data['guardian_phone'] ?? null]);
-        }
-
-        $student->parents()->syncWithoutDetaching([$parent->id => ['relation' => $data['guardian_relation'] ?? null, 'is_primary' => true]]);
-
-        return $code;
     }
 
     protected function storePhoto(Request $request, Student $student): void

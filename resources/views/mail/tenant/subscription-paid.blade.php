@@ -10,6 +10,9 @@ Nous avons bien reçu le paiement de l’abonnement de **{{ $schoolName }}**.
 **Formule** : {{ $planName }}
 @endif
 **Abonnement valable jusqu’au** : {{ $expiresAt }}
+@if ($invoiceNumber)
+**Facture** : {{ $invoiceNumber }} (téléchargeable dans **Administration → Abonnement**)
+@endif
 </x-mail::panel>
 
 <x-mail::button :url="$billingUrl">

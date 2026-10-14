@@ -45,15 +45,32 @@ Route::middleware('tenant:optional')->group(function () {
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
     });
+    Route::post('auth/two-factor', [AuthController::class, 'twoFactor'])->middleware('throttle:two-factor')->name('auth.two-factor');
 });
 
 // ── Console superadmin (domaine central uniquement) ───────────────────────
 Route::prefix('platform')->middleware('central')->group(function () {
     Route::post('auth/login', [PlatformAuthController::class, 'login'])->middleware('throttle:login');
+    Route::post('auth/two-factor', [PlatformAuthController::class, 'twoFactor'])->middleware('throttle:two-factor');
 
-    Route::middleware('auth:platform')->group(function () {
-        Route::get('auth/me', [PlatformAuthController::class, 'me']);
-        Route::post('auth/logout', [PlatformAuthController::class, 'logout']);
+    Route::middleware(['auth:platform', 'account.secured:platform'])->group(function () {
+        Route::get('auth/me', [PlatformAuthController::class, 'me'])->name('platform.auth.me');
+        Route::post('auth/logout', [PlatformAuthController::class, 'logout'])->name('platform.auth.logout');
+        Route::put('auth/password', [PlatformAuthController::class, 'password'])->name('platform.auth.password');
+
+        // Double authentification du superadmin
+        Route::prefix('auth/two-factor')->name('platform.two-factor.')->group(function () {
+            Route::get('/', [PlatformAuthController::class, 'showTwoFactor'])->name('show');
+            Route::post('/setup', [PlatformAuthController::class, 'enableTwoFactor'])->name('enable');
+            Route::post('confirm', [PlatformAuthController::class, 'confirmTwoFactor'])->name('confirm');
+            Route::post('recovery-codes', [PlatformAuthController::class, 'regenerateRecoveryCodes'])->name('recovery-codes');
+            Route::delete('/', [PlatformAuthController::class, 'disableTwoFactor'])->name('disable');
+        });
+
+        // Alertes plateforme : paiements d'abonnement, expirations, sauvegardes
+        Route::get('notifications', [Tenant\NotificationController::class, 'index']);
+        Route::post('notifications/read-all', [Tenant\NotificationController::class, 'markAllAsRead']);
+        Route::post('notifications/{id}/read', [Tenant\NotificationController::class, 'markAsRead']);
 
         Route::get('dashboard', [PlatformController::class, 'dashboard']);
         Route::get('analytics', [PlatformController::class, 'dashboard']);
@@ -74,6 +91,7 @@ Route::prefix('platform')->middleware('central')->group(function () {
         Route::put('subscriptions/{subscription}', [BillingController::class, 'updateSubscription']);
         Route::get('payments', [BillingController::class, 'payments']);
         Route::post('payments', [BillingController::class, 'storePayment']);
+        Route::get('payments/{payment}/invoice', [BillingController::class, 'invoice'])->whereNumber('payment');
 
         Route::get('tickets', [TicketController::class, 'index']);
         Route::get('tickets/{ticket}', [TicketController::class, 'show']);
@@ -93,13 +111,22 @@ Route::prefix('platform')->middleware('central')->group(function () {
 });
 
 // ── Espace école (base de l'établissement) ────────────────────────────────
-Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'throttle:api'])->group(function () {
+Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'account.secured', 'throttle:api'])->group(function () {
 
     // Tous les profils
     Route::get('auth/me', [AuthController::class, 'me'])->name('auth.me');
     Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
     Route::put('profile', [Tenant\ProfileController::class, 'update']);
-    Route::put('profile/password', [Tenant\ProfileController::class, 'password']);
+    Route::put('profile/password', [Tenant\ProfileController::class, 'password'])->name('profile.password');
+
+    // Double authentification (personnel et enseignants)
+    Route::prefix('profile/two-factor')->name('profile.two-factor.')->group(function () {
+        Route::get('/', [Tenant\ProfileController::class, 'showTwoFactor'])->name('show');
+        Route::post('/setup', [Tenant\ProfileController::class, 'enableTwoFactor'])->name('enable');
+        Route::post('confirm', [Tenant\ProfileController::class, 'confirmTwoFactor'])->name('confirm');
+        Route::post('recovery-codes', [Tenant\ProfileController::class, 'regenerateRecoveryCodes'])->name('recovery-codes');
+        Route::delete('/', [Tenant\ProfileController::class, 'disableTwoFactor'])->name('disable');
+    });
 
     Route::get('notifications', [Tenant\NotificationController::class, 'index']);
     Route::post('notifications/read-all', [Tenant\NotificationController::class, 'markAllAsRead']);
@@ -116,6 +143,7 @@ Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'th
         Route::get('/', [Tenant\BillingController::class, 'show'])->name('show');
         Route::post('checkout', [Tenant\BillingController::class, 'checkout'])->middleware('role:school_admin')->name('checkout');
         Route::post('verify', [Tenant\BillingController::class, 'verify'])->name('verify');
+        Route::get('payments/{payment}/invoice', [Tenant\BillingController::class, 'invoice'])->whereNumber('payment')->name('invoice');
     });
 
     // Personnel et enseignants
@@ -135,6 +163,13 @@ Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'th
         Route::put('classes/{class}/subjects', [Tenant\ClassRoomController::class, 'syncSubjects']);
         Route::apiResource('classes', Tenant\ClassRoomController::class);
 
+        // Import (CSV ou Excel) : modèle à remplir, puis envoi du fichier (?dry_run=1 pour vérifier sans enregistrer)
+        Route::get('imports/{type}/template', [Tenant\ImportController::class, 'template'])->whereIn('type', ['students', 'payments']);
+        Route::post('imports/students', [Tenant\ImportController::class, 'students']);
+        Route::post('imports/payments', [Tenant\ImportController::class, 'payments'])->middleware('feature:finance');
+
+        Route::get('activity-log', [Tenant\ActivityLogController::class, 'index']);
+
         Route::post('students/bulk/{action}', [Tenant\StudentController::class, 'bulk']);
         Route::post('students/{student}/{action}', [Tenant\StudentController::class, 'action'])->where('action', 'archive|transfer|change-class|restore');
         Route::apiResource('students', Tenant\StudentController::class);
@@ -151,6 +186,8 @@ Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'th
             Route::put('assessments/{assessment}/grades', [Tenant\AssessmentController::class, 'saveGrades']);
             Route::post('assessments/{assessment}/validate', [Tenant\AssessmentController::class, 'validateGrades']);
             Route::post('assessments/{assessment}/unlock', [Tenant\AssessmentController::class, 'unlock']);
+            Route::get('assessments/{assessment}/grades/template', [Tenant\AssessmentController::class, 'gradesTemplate']);
+            Route::post('assessments/{assessment}/grades/import', [Tenant\AssessmentController::class, 'importGrades']);
             Route::apiResource('assessments', Tenant\AssessmentController::class);
 
             Route::get('report-cards', [Tenant\ReportCardController::class, 'index']);

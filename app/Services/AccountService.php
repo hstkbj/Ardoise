@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Tenant\ParentProfile;
 use App\Models\Tenant\Role;
+use App\Models\Tenant\Student;
 use App\Models\Tenant\Teacher;
 use App\Models\Tenant\User;
 use App\Support\Phone;
@@ -64,6 +65,42 @@ class AccountService
         $code = $this->codes->issue($parent);
 
         return [$parent, $code];
+    }
+
+    /**
+     * Parent principal saisi à l'inscription (formulaire ou import) : retrouvé
+     * par son téléphone, sinon créé avec son code d'accès (renvoyé en clair).
+     *
+     * @param  array{guardian_id?: int|null, guardian_name?: string|null, guardian_phone?: string|null, guardian_relation?: string|null}  $data
+     */
+    public function attachGuardian(Student $student, array $data): ?string
+    {
+        if (! empty($data['guardian_id'])) {
+            $student->parents()->syncWithoutDetaching([$data['guardian_id'] => ['relation' => $data['guardian_relation'] ?? null, 'is_primary' => true]]);
+
+            return null;
+        }
+
+        if (empty($data['guardian_name'])) {
+            return null;
+        }
+
+        $phone = Phone::normalize($data['guardian_phone'] ?? null);
+        $parent = $phone
+            ? ParentProfile::get()->first(fn ($p) => Phone::normalize($p->phone) === $phone)
+            : null;
+        $code = null;
+
+        if (! $parent) {
+            $parts = preg_split('/\s+/', trim($data['guardian_name']));
+            $first = count($parts) > 1 ? implode(' ', array_slice($parts, 0, -1)) : $parts[0];
+            $last = count($parts) > 1 ? end($parts) : '';
+            [$parent, $code] = $this->createParent(['first_name' => $first, 'last_name' => $last, 'phone' => $data['guardian_phone'] ?? null]);
+        }
+
+        $student->parents()->syncWithoutDetaching([$parent->id => ['relation' => $data['guardian_relation'] ?? null, 'is_primary' => true]]);
+
+        return $code;
     }
 
     public function syncParentAccount(ParentProfile $parent): void

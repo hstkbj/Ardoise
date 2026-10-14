@@ -7,9 +7,12 @@ use App\Models\Tenant\User;
 use App\Services\Payments\FedaPay\FedaPayClient;
 use App\Services\Payments\ManualPaymentGateway;
 use App\Services\Payments\PaymentGateway;
+use App\Services\Sms\AfricasTalkingSmsGateway;
 use App\Services\Sms\HttpSmsGateway;
 use App\Services\Sms\LogSmsGateway;
+use App\Services\Sms\OrangeSmsGateway;
 use App\Services\Sms\SmsGateway;
+use App\Services\Sms\TwilioSmsGateway;
 use App\Tenancy\QueueTenancy;
 use App\Tenancy\TenantManager;
 use App\Tenancy\TenantResolver;
@@ -35,9 +38,17 @@ class AppServiceProvider extends ServiceProvider
         // FedaPay, compte de la plateforme (abonnements des écoles)
         $this->app->bind(FedaPayClient::class, fn () => FedaPayClient::platform());
 
-        $this->app->singleton(SmsGateway::class, fn () => match (config('ardoise.sms.driver')) {
-            'http' => new HttpSmsGateway(config('ardoise.sms.http')),
-            default => new LogSmsGateway,
+        // Fournisseur SMS (SMS_DRIVER) ; « php artisan sms:test +229… » pour vérifier
+        $this->app->singleton(SmsGateway::class, function () {
+            $sender = (string) config('ardoise.sms.sender');
+
+            return match (config('ardoise.sms.driver')) {
+                'http' => new HttpSmsGateway((array) config('ardoise.sms.http'), $sender),
+                'orange' => new OrangeSmsGateway((array) config('ardoise.sms.orange'), $sender),
+                'twilio' => new TwilioSmsGateway((array) config('ardoise.sms.twilio'), $sender),
+                'africastalking' => new AfricasTalkingSmsGateway((array) config('ardoise.sms.africastalking'), $sender),
+                default => new LogSmsGateway,
+            };
         });
     }
 
@@ -71,6 +82,9 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(10)->by('login:'.$request->ip()),
             Limit::perMinute(5)->by('login-id:'.strtolower((string) $request->input('login')).'|'.$request->ip()),
         ]);
+
+        // 2e étape de connexion : chaque défi est en plus limité à 5 essais (TwoFactorChallenge)
+        RateLimiter::for('two-factor', fn (Request $request) => Limit::perMinute(10)->by('2fa:'.$request->ip()));
 
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(240)->by($request->user()?->getAuthIdentifier().'|'.$request->ip()));
 

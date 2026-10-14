@@ -2,6 +2,7 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Concerns\HasTwoFactorAuthentication;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -10,13 +11,13 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, Notifiable;
+    use HasApiTokens, HasTwoFactorAuthentication, Notifiable;
 
     protected $connection = 'tenant';
 
     protected $guarded = ['id'];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = ['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'];
 
     /** Ordre de priorité pour déterminer l'espace d'arrivée. */
     public const ROLE_PRIORITY = ['school_admin', 'director', 'academic_manager', 'accountant', 'secretary', 'teacher', 'parent', 'student'];
@@ -25,7 +26,14 @@ class User extends Authenticatable
 
     protected function casts(): array
     {
-        return ['password' => 'hashed', 'last_login_at' => 'datetime'];
+        return [
+            'password' => 'hashed',
+            'last_login_at' => 'datetime',
+            'must_change_password' => 'boolean',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
+        ];
     }
 
     public function roles(): BelongsToMany

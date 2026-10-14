@@ -24,7 +24,7 @@ class PaymentService
      *
      * @return Collection<int, Payment>
      */
-    public function record(Student $student, Fee $fee, int $amount, string $method, ?string $paidAt = null, ?string $transactionRef = null, ?string $note = null): Collection
+    public function record(Student $student, Fee $fee, int $amount, string $method, ?string $paidAt = null, ?string $transactionRef = null, ?string $note = null, bool $notify = true): Collection
     {
         $payments = DB::connection('tenant')->transaction(function () use ($student, $fee, $amount, $method, $paidAt, $transactionRef, $note) {
             $assignments = FeeAssignment::where('student_id', $student->id)
@@ -62,6 +62,10 @@ class PaymentService
         });
 
         ActivityLog::record('payment.recorded', $student, ['amount' => $amount, 'fee' => $fee->name, 'references' => $payments->pluck('reference')]);
+
+        if (! $notify) {
+            return $payments;
+        }
 
         $this->notifier->event(
             'payment.received',

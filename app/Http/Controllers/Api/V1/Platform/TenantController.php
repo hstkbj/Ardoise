@@ -131,7 +131,7 @@ class TenantController extends Controller
 
             abort_unless($admin && $admin->email, 422, 'Aucun administrateur avec une adresse e-mail dans cette école.');
 
-            $admin->forceFill(['password' => $password, 'status' => 'active'])->save();
+            $admin->forceFill(['password' => $password, 'must_change_password' => true, 'status' => 'active'])->save();
             $admin->tokens()->delete();
 
             return $admin->email;

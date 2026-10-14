@@ -13,3 +13,6 @@ Schedule::command('payments:sync-fedapay')->everyFifteenMinutes()->withoutOverla
 
 // Nettoyage des jetons mobiles expirés dans chaque école
 Schedule::command('tenants:prune-tokens')->weekly();
+
+// Sauvegarde des bases (centrale + écoles), conservation BACKUP_KEEP_DAYS jours
+Schedule::command('backup:run')->dailyAt('01:30')->withoutOverlapping()->onOneServer();

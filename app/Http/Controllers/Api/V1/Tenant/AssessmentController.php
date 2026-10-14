@@ -9,13 +9,18 @@ use App\Models\Tenant\Assessment;
 use App\Models\Tenant\ClassRoom;
 use App\Models\Tenant\ClassSubject;
 use App\Models\Tenant\Enrollment;
+use App\Models\Tenant\Subject;
 use App\Models\Tenant\Term;
 use App\Services\GradeService;
+use App\Services\Imports\GradeImport;
 use App\Support\ListQuery;
+use App\Support\Spreadsheet\CsvResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /** Évaluations et feuilles de notes. */
 class AssessmentController extends Controller
@@ -107,6 +112,36 @@ class AssessmentController extends Controller
         return response()->json(['message' => 'Notes enregistrées.', 'saved_at' => now()]);
     }
 
+    /** GET /assessments/{id}/grades/template : fichier pré-rempli avec les élèves et les notes déjà saisies. */
+    public function gradesTemplate(Assessment $assessment): StreamedResponse
+    {
+        $this->authorize('grades.view');
+        $this->ensureOwn($assessment);
+        $assessment->load('classSubject.classRoom', 'classSubject.subject');
+
+        $rows = collect($this->grades->sheet($assessment))->map(fn (array $line) => [
+            $line['matricule'], $line['full_name'], $line['score'], $line['absent'] ? 'oui' : '', $line['comment'],
+        ]);
+        $name = Str::slug(implode(' ', ['notes', $assessment->classSubject->classRoom->name, $assessment->classSubject->subject?->name, $assessment->title]));
+
+        return CsvResponse::download($name.'.csv', GradeImport::templateHeaders(), $rows);
+    }
+
+    /** POST /assessments/{id}/grades/import { file, dry_run } : notes depuis un fichier Excel ou CSV. */
+    public function importGrades(Request $request, Assessment $assessment, GradeImport $import): JsonResponse
+    {
+        $this->authorize('grades.create');
+        $this->ensureOwn($assessment);
+        $result = $import->run($assessment->load('classSubject.classRoom'), ImportController::rows($request), $request->boolean('dry_run'));
+
+        return response()->json([
+            'message' => $result['dry_run']
+                ? "Fichier valide : {$result['saved']} note(s) à enregistrer."
+                : "{$result['saved']} note(s) importée(s)".($result['skipped'] ? ", {$result['skipped']} ligne(s) vide(s) ignorée(s)" : '').'.',
+            'data' => $result,
+        ]);
+    }
+
     /** POST /assessments/{id}/validate : verrouille et notifie les parents. */
     public function validateGrades(Request $request, Assessment $assessment): AssessmentResource
     {
@@ -174,7 +209,7 @@ class AssessmentController extends Controller
 
         $classSubject = ClassSubject::firstOrCreate(
             ['class_room_id' => $class->id, 'subject_id' => $data['subject_id']],
-            ['teacher_id' => $this->teacherId(), 'coefficient' => \App\Models\Tenant\Subject::find($data['subject_id'])?->default_coefficient ?? 1],
+            ['teacher_id' => $this->teacherId(), 'coefficient' => Subject::find($data['subject_id'])?->default_coefficient ?? 1],
         );
 
         if (($teacherId = $this->teacherId()) && (int) $classSubject->teacher_id !== $teacherId) {

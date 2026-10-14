@@ -42,9 +42,9 @@ function isActive(to) {
 }
 
 async function loadUnread() {
-  if (!props.notificationsTo || auth.isPlatform || auth.requiresPayment) return;
+  if (!props.notificationsTo || auth.requiresPayment || auth.securityAction) return;
   try {
-    const res = await notificationsApi.list({ per_page: 1 });
+    const res = await notificationsApi.list({ per_page: 1 }, auth.isPlatform ? 'platform/notifications' : 'notifications');
     unread.value = res.meta?.unread ?? 0;
   } catch {
     /* silencieux */
@@ -133,6 +133,7 @@ onUnmounted(() => {
           </button>
           <div v-if="menuOpen" role="menu" class="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-white py-1 shadow-lg">
             <RouterLink v-if="!auth.isPlatform" to="/profile" role="menuitem" class="flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-ground"><AppIcon name="user" class="size-4 text-subtle" />Mon profil</RouterLink>
+            <RouterLink v-if="auth.isPlatform || auth.security?.two_factor_available" to="/security" role="menuitem" class="flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-ground"><AppIcon name="shield" class="size-4 text-subtle" />Sécurité du compte</RouterLink>
             <button type="button" role="menuitem" class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-danger-600 hover:bg-danger-50" @click="logout"><AppIcon name="logout" class="size-4" />Se déconnecter</button>
           </div>
         </div>

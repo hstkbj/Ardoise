@@ -7,7 +7,7 @@ use App\Http\Resources\NotificationResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/** Notifications de l'utilisateur connecté (tous profils). */
+/** Notifications de l'utilisateur connecté (tous profils, et superadmins sur /platform/notifications). */
 class NotificationController extends Controller
 {
     public function index(Request $request)
@@ -15,7 +15,8 @@ class NotificationController extends Controller
         $query = $request->user()->notifications()->latest();
 
         if ($type = $request->input('filter.type')) {
-            $query->where('data', 'like', '%"type":"'.addslashes($type).'"%');
+            // « subscription. » : toutes les alertes d'abonnement (préfixe)
+            $query->where('data', 'like', '%"type":"'.addslashes($type).(str_ends_with($type, '.') ? '%' : '"%'));
         }
 
         if ($request->boolean('unread')) {

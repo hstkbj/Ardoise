@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { csrf, onPaymentRequired, onUnauthorized } from '@/services/http';
+import { csrf, onPaymentRequired, onSecurityRequired, onUnauthorized } from '@/services/http';
 import { authApi } from '@/services/api';
 import { useOptionsStore } from './options';
 import { resetParentChildren } from '@/composables/useParentChildren';
@@ -60,6 +60,10 @@ export const useAuthStore = defineStore('auth', () => {
   const subscription = computed(() => user.value?.subscription ?? null);
   const requiresPayment = computed(() => !!subscription.value?.requires_payment);
 
+  /** Mot de passe provisoire à changer / double authentification à activer avant tout le reste. */
+  const security = computed(() => user.value?.security ?? null);
+  const securityAction = computed(() => security.value?.pending_action ?? null);
+
   function can(permission) {
     if (!permission) return true;
     const perms = user.value?.permissions || [];
@@ -81,19 +85,38 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function afterLogin() {
-    if (user.value && !isPlatform.value && !requiresPayment.value && hasRole(...STAFF_ROLES, 'teacher')) {
+    if (user.value && !isPlatform.value && !requiresPayment.value && !securityAction.value && hasRole(...STAFF_ROLES, 'teacher')) {
       await useOptionsStore().load().catch(() => {});
     }
   }
 
+  /**
+   * Connexion par mot de passe. Si la double authentification est active, renvoie
+   * { two_factor: true, challenge } : appeler ensuite completeTwoFactor().
+   */
   async function login({ login: identifier, password, schoolCode, remember, role: profile }) {
     loading.value = true;
     try {
       await csrf();
-      user.value =
+      const out =
         profile === 'superadmin'
           ? await authApi.platformLogin({ login: identifier, password, remember })
           : await authApi.login({ login: identifier, password, remember, school_code: schoolCode || undefined });
+      if (out?.two_factor) return out;
+      user.value = out;
+      await afterLogin();
+      return user.value;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** 2e étape : code à 6 chiffres de l'application, ou code de secours. */
+  async function completeTwoFactor({ challenge, code, recoveryCode, role: profile }) {
+    loading.value = true;
+    try {
+      const payload = recoveryCode ? { challenge, recovery_code: recoveryCode } : { challenge, code };
+      user.value = profile === 'superadmin' ? await authApi.platformTwoFactor(payload) : await authApi.twoFactor(payload);
       await afterLogin();
       return user.value;
     } finally {
@@ -138,6 +161,12 @@ export const useAuthStore = defineStore('auth', () => {
     window.location.assign('/login?expired=1');
   });
 
+  // Compte à sécuriser (403) : rafraîchit l'état puis ouvre la page Sécurité
+  onSecurityRequired(async () => {
+    await refresh();
+    if (!window.location.pathname.startsWith('/security')) window.location.assign('/security');
+  });
+
   onUnauthorized(() => {
     if (user.value) {
       user.value = null;
@@ -153,5 +182,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, loading, isAuthenticated, role, roles, homePath, isPlatform, subscription, requiresPayment, hasRole, hasFeature, can, init, refresh, login, loginWithCode, logout, setUser };
+  return { user, loading, isAuthenticated, role, roles, homePath, isPlatform, subscription, requiresPayment, security, securityAction, hasRole, hasFeature, can, init, refresh, login, completeTwoFactor, loginWithCode, logout, setUser, afterLogin };
 });

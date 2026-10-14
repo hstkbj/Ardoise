@@ -11,13 +11,14 @@ import ErrorState from '@/components/ui/ErrorState.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import GradeTable from '@/components/domain/GradeTable.vue';
+import ImportDialog from '@/components/domain/ImportDialog.vue';
 import { gradesApi } from '@/services/api';
 import { createResource } from '@/services/resource';
 import { OPTIONS } from '@/config/options';
 import { useAuthStore, STAFF_ROLES } from '@/stores/auth';
 import { useOptionsStore } from '@/stores/options';
 import { useUiStore } from '@/stores/ui';
-import { formatDate, formatScore, parseGrade } from '@/utils/format';
+import { formatDate, formatScore, openFile, parseGrade } from '@/utils/format';
 
 const props = defineProps({ assessmentsBase: { type: String, default: '/admin/assessments' } });
 const route = useRoute();
@@ -38,6 +39,11 @@ const loading = ref(false);
 const error = ref(null);
 const dirty = ref(false);
 const saving = ref(false);
+const importOpen = ref(false);
+
+async function afterImport() {
+  await loadSheet();
+}
 
 async function loadAssessments() {
   loadingList.value = true;
@@ -178,6 +184,10 @@ onBeforeRouteLeave(async () => {
             <h2 class="card-title">{{ assessment.title }}</h2>
             <p class="text-sm text-muted">{{ assessment.class_name }} · {{ assessment.subject_name }} · {{ formatDate(assessment.date) }} · coef. {{ assessment.coefficient }} · sur {{ assessment.max_score }}</p>
           </div>
+          <template v-if="!locked">
+            <button type="button" class="btn btn-sm btn-ghost" title="Fichier pré-rempli avec les élèves, à compléter dans Excel" @click="openFile(gradesApi.templatePath(assessment.id))"><AppIcon name="download" class="size-4" />Feuille Excel</button>
+            <button type="button" class="btn btn-sm btn-secondary" :disabled="dirty" :title="dirty ? 'Enregistrez d’abord les notes saisies' : ''" @click="importOpen = true"><AppIcon name="upload" class="size-4" />Importer</button>
+          </template>
           <StatusBadge :status="assessment.status" />
         </div>
         <p v-if="locked" class="flex items-center gap-2 bg-info-50 px-5 py-2.5 text-[13px] text-info-700"><AppIcon name="lock" class="size-4" />Notes validées et visibles par les parents.</p>
@@ -191,6 +201,16 @@ onBeforeRouteLeave(async () => {
           <button v-else-if="canUnlock" type="button" class="btn btn-secondary" @click="unlock"><AppIcon name="unlock" class="size-4" />Déverrouiller</button>
         </div>
       </section>
+
+      <ImportDialog
+        :open="importOpen"
+        title="Importer les notes"
+        :endpoint="`assessments/${assessment.id}/grades/import`"
+        :template-path="gradesApi.templatePath(assessment.id)"
+        help="Colonnes : Matricule, Note (virgule ou point), Absent (oui / vide), Commentaire. Une ligne sans note ni absence est ignorée : la note déjà saisie est conservée. Les notes importées restent en brouillon jusqu’à la validation."
+        @imported="afterImport"
+        @close="importOpen = false"
+      />
     </template>
   </div>
 </template>

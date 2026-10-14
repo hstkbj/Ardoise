@@ -88,6 +88,8 @@ class CreateTenant
                     'name' => $data['admin_name'],
                     'email' => strtolower($data['admin_email']),
                     'password' => $password,
+                    // Mot de passe généré et envoyé par e-mail : à changer à la première connexion
+                    'must_change_password' => ! isset($data['admin_password']),
                     'status' => 'active',
                 ]);
                 $admin->roles()->attach(Role::where('key', 'school_admin')->value('id'));

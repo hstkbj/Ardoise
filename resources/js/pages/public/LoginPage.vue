@@ -23,6 +23,9 @@ const profile = ref(['parent', 'superadmin'].includes(route.query.profile) ? rou
 const form = reactive({ login: '', password: '', schoolCode: '', remember: true, code: '' });
 const showPassword = ref(false);
 const error = ref('');
+// Double authentification : 2e étape après le mot de passe
+const challenge = ref('');
+const otp = reactive({ code: '', recovery: '', useRecovery: false });
 
 // Sur un sous-domaine d'école, le code établissement est inutile
 const onSchoolHost = computed(() => {
@@ -36,7 +39,36 @@ function formatCode(e) {
   form.code = raw.match(/.{1,4}/g)?.join('-') ?? '';
 }
 
+function goHome() {
+  const redirect = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/') ? route.query.redirect : null;
+  router.replace(auth.securityAction ? '/security' : redirect || auth.homePath);
+}
+
+async function submitCode() {
+  error.value = '';
+  const code = otp.code.replace(/\s/g, '');
+  if (otp.useRecovery ? !otp.recovery.trim() : !/^\d{6}$/.test(code)) {
+    error.value = otp.useRecovery ? 'Saisissez un de vos codes de secours.' : 'Saisissez les 6 chiffres affichés par votre application.';
+    return;
+  }
+  try {
+    await auth.completeTwoFactor({ challenge: challenge.value, code, recoveryCode: otp.useRecovery ? otp.recovery.trim() : undefined, role: profile.value });
+    goHome();
+  } catch (e) {
+    error.value = e.status === 429 ? 'Trop de tentatives. Patientez une minute avant de réessayer.' : e.message;
+    if (/expirée/.test(e.message)) cancelTwoFactor(false);
+  }
+}
+
+function cancelTwoFactor(clearError = true) {
+  challenge.value = '';
+  Object.assign(otp, { code: '', recovery: '', useRecovery: false });
+  form.password = '';
+  if (clearError) error.value = '';
+}
+
 async function submit() {
+  if (challenge.value) return submitCode();
   error.value = '';
   try {
     if (profile.value === 'parent') {
@@ -50,10 +82,13 @@ async function submit() {
         error.value = 'Renseignez votre identifiant et votre mot de passe.';
         return;
       }
-      await auth.login({ login: form.login.trim(), password: form.password, schoolCode: form.schoolCode.trim(), remember: form.remember, role: profile.value });
+      const out = await auth.login({ login: form.login.trim(), password: form.password, schoolCode: form.schoolCode.trim(), remember: form.remember, role: profile.value });
+      if (out?.two_factor) {
+        challenge.value = out.challenge;
+        return;
+      }
     }
-    const redirect = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/') ? route.query.redirect : null;
-    router.replace(redirect || auth.homePath);
+    goHome();
   } catch (e) {
     error.value = e.status === 429 ? 'Trop de tentatives. Patientez une minute avant de réessayer.' : e.message;
   }
@@ -65,6 +100,29 @@ async function submit() {
     <h1 class="text-2xl font-semibold tracking-tight">Connexion</h1>
     <p class="mt-1 text-sm text-muted">Choisissez votre profil pour accéder à votre espace.</p>
 
+    <form v-if="challenge" class="mt-6 space-y-4" novalidate @submit.prevent="submit">
+      <div class="flex gap-3 rounded-xl bg-mint p-4 text-[13px] text-body">
+        <AppIcon name="shield" class="mt-0.5 size-4 shrink-0" />
+        <span v-if="!otp.useRecovery">Ouvrez votre application d’authentification et saisissez le code à 6 chiffres affiché pour <b>{{ form.login }}</b>.</span>
+        <span v-else>Saisissez un de vos codes de secours. Chaque code ne fonctionne qu’une fois.</span>
+      </div>
+      <div v-if="!otp.useRecovery" class="flex flex-col gap-1">
+        <label for="otp" class="label">Code de vérification</label>
+        <input id="otp" v-model="otp.code" class="input h-14 text-center font-mono text-2xl tracking-[0.4em]" inputmode="numeric" autocomplete="one-time-code" maxlength="7" autofocus :aria-invalid="!!error" />
+      </div>
+      <div v-else class="flex flex-col gap-1">
+        <label for="recovery" class="label">Code de secours</label>
+        <input id="recovery" v-model="otp.recovery" class="input h-12 text-center font-mono text-lg uppercase" placeholder="XXXXX-XXXXX" autocapitalize="characters" spellcheck="false" :aria-invalid="!!error" />
+      </div>
+      <p v-if="error" class="rounded-lg bg-danger-50 px-3 py-2.5 text-sm text-danger-600" role="alert">{{ error }}</p>
+      <button type="submit" class="btn btn-lg btn-primary w-full" :disabled="auth.loading">{{ auth.loading ? 'Vérification…' : 'Valider' }}</button>
+      <div class="flex justify-between text-[13px]">
+        <button type="button" class="link" @click="otp.useRecovery = !otp.useRecovery; error = ''">{{ otp.useRecovery ? 'Utiliser l’application' : 'Utiliser un code de secours' }}</button>
+        <button type="button" class="link" @click="cancelTwoFactor()">Retour</button>
+      </div>
+    </form>
+
+    <template v-else>
     <div class="mt-6 grid grid-cols-3 gap-1 rounded-xl bg-white p-1 ring-1 ring-line" role="radiogroup" aria-label="Profil">
       <button v-for="p in profiles" :key="p.key" type="button" role="radio" :aria-checked="profile === p.key" class="flex h-11 items-center justify-center gap-2 rounded-lg text-[13px] font-medium" :class="profile === p.key ? 'bg-brand-600 text-white' : 'text-body hover:bg-ground'" @click="profile = p.key; error = ''">
         <AppIcon :name="p.icon" class="size-4" />{{ p.label }}
@@ -115,6 +173,7 @@ async function submit() {
     </form>
 
     <p v-if="profile === 'parent'" class="mt-6 text-center text-[13px] text-muted">Code perdu ? Demandez-en un nouveau au secrétariat : l’ancien sera désactivé.</p>
+    </template>
     <p class="mt-4 text-center text-[13px]"><RouterLink :to="{ path: '/guide', query: { pour: profile === 'parent' ? 'parent' : 'ecole' } }" class="link">Besoin d’aide ? Consultez le guide d’utilisation</RouterLink></p>
   </div>
 </template>

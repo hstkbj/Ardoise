@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
+use App\Http\Controllers\Concerns\ManagesTwoFactor;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MeResource;
+use App\Models\Central\PlatformAdmin;
+use App\Models\Tenant\ActivityLog;
+use App\Models\Tenant\User;
 use App\Support\Phone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +18,8 @@ use Illuminate\Validation\ValidationException;
 
 class ProfileController extends Controller
 {
+    use ManagesTwoFactor;
+
     public function update(Request $request): MeResource
     {
         $user = $request->user();
@@ -41,16 +47,30 @@ class ProfileController extends Controller
 
         $data = $request->validate([
             'current' => ['required', 'string'],
-            'password' => ['required', 'confirmed', Password::min(8)],
-        ]);
+            'password' => ['required', 'confirmed', Password::min(8), 'different:current'],
+        ], ['password.different' => 'Choisissez un mot de passe différent du mot de passe actuel.']);
 
         if (! Hash::check($data['current'], (string) $user->password)) {
             throw ValidationException::withMessages(['current' => 'Mot de passe actuel incorrect.']);
         }
 
-        $user->update(['password' => $data['password']]);
-        $user->tokens()->delete();
+        $user->forceFill(['password' => $data['password'], 'must_change_password' => false])->save();
 
-        return response()->json(['message' => 'Mot de passe modifié.']);
+        // Les autres appareils (jetons mobiles) sont déconnectés ; la session en cours est conservée
+        $current = $user->currentAccessToken();
+        $user->tokens()->when($current && method_exists($current, 'getKey'), fn ($q) => $q->whereKeyNot($current->getKey()))->delete();
+        ActivityLog::record('security.password_changed', $user);
+
+        return response()->json(['message' => 'Mot de passe modifié.', 'data' => (new MeResource($user->load('roles')))->resolve($request)]);
+    }
+
+    protected function twoFactorUser(Request $request): User|PlatformAdmin
+    {
+        return $request->user();
+    }
+
+    protected function afterTwoFactorChange(User|PlatformAdmin $user, string $action): void
+    {
+        ActivityLog::record($action, $user);
     }
 }

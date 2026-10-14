@@ -90,6 +90,12 @@ class TenantManager
         return $tenant->database;
     }
 
+    /** Configuration de la connexion « tenant » avant toute connexion à une école (identifiants de service). */
+    public function connectionTemplate(): array
+    {
+        return $this->template;
+    }
+
     public function driver(): string
     {
         return $this->template['driver'];

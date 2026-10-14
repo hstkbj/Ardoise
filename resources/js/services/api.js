@@ -8,8 +8,10 @@ import { send } from './resource';
 const data = (r) => r.data.data ?? r.data;
 
 export const authApi = {
-  /** POST /auth/login — personnel et enseignants */
+  /** POST /auth/login — personnel et enseignants ; { two_factor, challenge } si un code est attendu */
   login: (payload) => http.post('/auth/login', payload).then(data),
+  /** POST /auth/two-factor { challenge, code | recovery_code } — 2e étape de connexion */
+  twoFactor: (payload) => http.post('/auth/two-factor', payload).then(data),
   /** POST /parent/login — parents, avec leur code d'accès uniquement */
   parentLogin: (code) => http.post('/parent/login', { code }).then(data),
   me: () => http.get('/auth/me', { skipAuthRedirect: true }).then(data),
@@ -19,6 +21,7 @@ export const authApi = {
 
   // Superadmin (domaine central)
   platformLogin: (payload) => http.post('/platform/auth/login', payload).then(data),
+  platformTwoFactor: (payload) => http.post('/platform/auth/two-factor', payload).then(data),
   platformMe: () => http.get('/platform/auth/me', { skipAuthRedirect: true }).then(data),
   platformLogout: () => http.post('/platform/auth/logout'),
 };
@@ -36,6 +39,8 @@ export const dashboardApi = {
 };
 
 export const gradesApi = {
+  /** Modèle pré-rempli (élèves + notes déjà saisies) à compléter dans Excel */
+  templatePath: (assessmentId) => `/assessments/${assessmentId}/grades/template`,
   /** GET /assessments/{id}/grades → { data: lignes, assessment } */
   sheet: (assessmentId) => http.get(`/assessments/${assessmentId}/grades`).then((r) => r.data),
   /** PUT /assessments/{id}/grades { grades: [{ student_id, score, absent, comment }] } */
@@ -101,10 +106,41 @@ export const profileApi = {
   password: (payload) => http.put('/profile/password', payload).then((r) => r.data),
 };
 
+/**
+ * Sécurité du compte : mot de passe et double authentification.
+ * Personnel : /profile/… — superadmin : /platform/auth/…
+ */
+export function securityApi(platform = false) {
+  const base = platform ? '/platform/auth/two-factor' : '/profile/two-factor';
+  return {
+    status: () => http.get(base).then(data),
+    setup: () => http.post(`${base}/setup`).then(data),
+    confirm: (code) => http.post(`${base}/confirm`, { code }).then(data),
+    recoveryCodes: (password) => http.post(`${base}/recovery-codes`, { password }).then(data),
+    disable: (password) => http.delete(base, { data: { password } }).then(data),
+    password: (payload) => http.put(platform ? '/platform/auth/password' : '/profile/password', payload).then((r) => r.data),
+  };
+}
+
+/**
+ * Imports CSV / Excel. upload() renvoie { message, data } ; en cas d'erreurs,
+ * la promesse est rejetée avec e.lines = [{ line, message }].
+ */
+export const importsApi = {
+  templatePath: (type) => `/imports/${type}/template`,
+  upload: (endpoint, file, options = {}) => {
+    const form = new FormData();
+    form.append('file', file);
+    Object.entries(options).forEach(([k, v]) => form.append(k, typeof v === 'boolean' ? (v ? '1' : '0') : v));
+    return http.post(`/${endpoint}`, form).then((r) => r.data);
+  },
+};
+
+/** Notifications : base « notifications » (école) ou « platform/notifications » (console). */
 export const notificationsApi = {
-  list: (params) => http.get('/notifications', { params }).then((r) => r.data),
-  read: (id) => http.post(`/notifications/${id}/read`),
-  readAll: () => http.post('/notifications/read-all'),
+  list: (params, base = 'notifications') => http.get(`/${base}`, { params }).then((r) => r.data),
+  read: (id, base = 'notifications') => http.post(`/${base}/${id}/read`),
+  readAll: (base = 'notifications') => http.post(`/${base}/read-all`),
 };
 
 export const billingApi = {
@@ -113,6 +149,8 @@ export const billingApi = {
   /** POST /billing/checkout { plan_id, periods } → { reference, url } (page FedaPay) */
   checkout: (payload) => http.post('/billing/checkout', payload).then(data),
   verify: (reference) => http.post('/billing/verify', { reference }).then(data),
+  /** Facture PDF (ou HTML imprimable) d'un paiement confirmé */
+  invoicePath: (paymentId) => `/billing/payments/${paymentId}/invoice`,
 };
 
 export const parentApi = {

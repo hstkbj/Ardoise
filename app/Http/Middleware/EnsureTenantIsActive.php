@@ -17,7 +17,7 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureTenantIsActive
 {
     /** Routes accessibles à l'administrateur quand l'abonnement doit être payé. */
-    protected const PAYMENT_ROUTES = ['billing.*', 'auth.me', 'auth.logout'];
+    protected const PAYMENT_ROUTES = ['billing.*', 'auth.me', 'auth.logout', 'profile.password', 'profile.two-factor.*'];
 
     public function handle(Request $request, Closure $next): Response
     {

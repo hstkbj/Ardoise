@@ -16,7 +16,7 @@ import BaseModal from '@/components/ui/BaseModal.vue';
 import { billingApi } from '@/services/api';
 import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
-import { formatDate, formatMoney, formatNumber } from '@/utils/format';
+import { formatDate, formatMoney, formatNumber, openFile } from '@/utils/format';
 
 const route = useRoute();
 const router = useRouter();
@@ -179,6 +179,7 @@ async function pay() {
             <span class="min-w-0 flex-1"><span class="block font-medium">{{ p.plan || 'Abonnement' }}<template v-if="p.months"> · {{ p.months }} mois</template></span><span class="text-xs text-subtle">{{ p.reference }} · {{ p.method }} · {{ formatDate(p.paid_at || p.created_at) }}</span></span>
             <span class="font-medium tabular">{{ formatMoney(p.amount) }}</span>
             <StatusBadge :status="p.status" />
+            <button v-if="p.status === 'paid'" type="button" class="btn btn-sm btn-ghost" :aria-label="`Facture ${p.invoice_number || p.reference}`" @click="openFile(billingApi.invoicePath(p.id))"><AppIcon name="file" class="size-4" />Facture</button>
           </li>
         </ul>
       </section>

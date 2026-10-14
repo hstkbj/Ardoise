@@ -8,6 +8,7 @@ use App\Models\Central\Subscription;
 use App\Models\Central\SubscriptionPayment;
 use App\Models\Central\Tenant;
 use App\Services\Payments\FedaPay\FedaPayClient;
+use App\Services\PlatformAlerts;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +23,11 @@ use Throwable;
  */
 class SubscriptionBilling
 {
-    public function __construct(protected FedaPayClient $fedapay) {}
+    public function __construct(
+        protected FedaPayClient $fedapay,
+        protected SubscriptionInvoice $invoices,
+        protected PlatformAlerts $alerts,
+    ) {}
 
     /**
      * État de l'abonnement, tel que l'affiche l'interface.
@@ -113,6 +118,13 @@ class SubscriptionBilling
         } catch (Throwable $e) {
             $payment->update(['status' => 'failed', 'meta' => ['error' => $e->getMessage()]]);
             Log::warning('FedaPay : création de transaction impossible', ['tenant' => $tenant->code, 'error' => $e->getMessage()]);
+            $this->alerts->send(
+                'subscription.payment_failed',
+                'Paiement impossible : '.$tenant->name,
+                "{$tenant->name} n’a pas pu ouvrir le paiement de son abonnement ({$payment->reference}, ".number_format($amount, 0, ',', ' ').' FCFA) : FedaPay ne répond pas. Détail : '.$e->getMessage(),
+                '/superadmin/payments',
+                'error',
+            );
 
             throw ValidationException::withMessages(['plan_id' => 'Le service de paiement est indisponible. Réessayez dans quelques minutes.']);
         }
@@ -144,6 +156,14 @@ class SubscriptionBilling
 
         if (in_array($status, FedaPayClient::FAILED_STATUSES, true)) {
             $payment->update(['status' => 'failed', 'meta' => array_merge($payment->meta ?? [], ['provider_status' => $status])]);
+            $payment->loadMissing('tenant');
+            $this->alerts->send(
+                'subscription.payment_failed',
+                'Paiement échoué : '.$payment->tenant?->name,
+                'Le paiement '.$payment->reference.' de '.$payment->tenant?->name.' ('.number_format($payment->amount, 0, ',', ' ')." FCFA) a échoué chez FedaPay (statut « {$status} »).",
+                '/superadmin/payments',
+                'warning',
+            );
         }
 
         return $payment->refresh();
@@ -163,23 +183,48 @@ class SubscriptionBilling
             }
 
             $tenant = Tenant::lockForUpdate()->findOrFail($payment->tenant_id);
-            $this->extend($tenant, $payment->months ?? 0, $payment->plan_id, $payment->amount);
-            $payment->update(['status' => 'paid', 'paid_at' => $paidAt ?? now(), 'subscription_id' => $tenant->subscription?->id]);
+            $period = $this->extend($tenant, $payment->months ?? 0, $payment->plan_id, $payment->amount);
+            $payment->update([
+                'status' => 'paid',
+                'paid_at' => $paidAt ?? now(),
+                'subscription_id' => $tenant->subscription?->id,
+                'meta' => array_merge($payment->meta ?? [], ['period_start' => $period['from']->toDateString(), 'period_end' => $period['to']->toDateString()]),
+            ]);
 
             return true;
         });
 
         $payment->refresh();
 
-        if ($applied && $payment->tenant->admin_email) {
+        if (! $applied) {
+            return $payment;
+        }
+
+        $this->invoices->assignNumber($payment);
+
+        if ($payment->tenant->admin_email) {
             Mail::to($payment->tenant->admin_email)->queue(new SubscriptionPaidMail($payment));
+        }
+
+        // Paiement en ligne : la plateforme est prévenue (un paiement saisi à la main l'a été par elle)
+        if ($payment->provider !== 'manual') {
+            $this->alerts->send(
+                'subscription.paid',
+                'Paiement reçu : '.$payment->tenant->name,
+                $payment->tenant->name.' a payé '.number_format($payment->amount, 0, ',', ' ').' FCFA ('.($payment->plan?->name ?? 'abonnement').($payment->months ? ', '.$payment->months.' mois' : '').'). Abonnement valable jusqu’au '.$payment->tenant->expires_at?->format('d/m/Y').'.',
+                '/superadmin/payments',
+            );
         }
 
         return $payment;
     }
 
-    /** Prolonge l'abonnement de N mois (paiement en ligne ou saisi par la plateforme). */
-    public function extend(Tenant $tenant, int $months, ?int $planId = null, ?int $amount = null): void
+    /**
+     * Prolonge l'abonnement de N mois (paiement en ligne ou saisi par la plateforme).
+     *
+     * @return array{from: Carbon, to: Carbon} période couverte
+     */
+    public function extend(Tenant $tenant, int $months, ?int $planId = null, ?int $amount = null): array
     {
         $currentEnd = $tenant->billingEndsAt();
         $from = $currentEnd && $currentEnd->isFuture() ? $currentEnd : now();
@@ -200,6 +245,8 @@ class SubscriptionBilling
             : Subscription::create($values + ['tenant_id' => $tenant->id, 'starts_at' => now()]);
 
         $tenant->unsetRelation('subscription');
+
+        return ['from' => $from->copy(), 'to' => $expiresAt->copy()];
     }
 
     public function nextReference(): string

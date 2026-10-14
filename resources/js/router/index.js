@@ -23,6 +23,7 @@ const p = {
   reset: () => import('@/pages/public/ResetPasswordPage.vue'),
   notFound: () => import('@/pages/shared/NotFoundPage.vue'),
   profile: () => import('@/pages/shared/ProfilePage.vue'),
+  security: () => import('@/pages/shared/SecurityPage.vue'),
   notifications: () => import('@/pages/shared/NotificationsPage.vue'),
   ticket: () => import('@/pages/shared/TicketShowPage.vue'),
 
@@ -119,6 +120,7 @@ const routes = [
       ...resourceRoutes('documents', 'documents', { base: `${A}/documents`, feature: 'documents', permission: 'documents', only: ['index', 'create'] }),
       ...resourceRoutes('users', 'users', { base: `${A}/users`, permission: 'users', only: ['index', 'create', 'edit'] }),
       { path: 'roles', component: p.roles, meta: { permission: 'roles.view', title: 'Rôles et permissions' } },
+      ...resourceRoutes('activity-log', 'activity-log', { base: `${A}/activity-log`, permission: 'activity_log', only: ['index'] }),
       ...resourceRoutes('support', 'support-tickets', { base: `${A}/support`, only: ['index', 'create'] }),
       { path: 'support/:id(\\d+)', component: p.ticket, props: { base: 'support-tickets', listPath: `${A}/support` }, meta: { title: 'Support' } },
       { path: 'settings', component: p.settings, meta: { permission: 'settings.view', title: 'Paramètres' } },
@@ -188,6 +190,7 @@ const routes = [
       ...resourceRoutes('payments', 'platform/payments', { base: `${S}/payments`, only: ['index'] }),
       ...resourceRoutes('tickets', 'platform/tickets', { base: `${S}/tickets`, only: ['index'] }),
       { path: 'tickets/:id(\\d+)', component: p.ticket, props: { base: 'platform/tickets', listPath: `${S}/tickets` }, meta: { title: 'Ticket' } },
+      { path: 'notifications', component: p.notifications, props: { base: 'platform/notifications' }, meta: { title: 'Alertes' } },
       ...resourceRoutes('announcements', 'platform/announcements', { base: `${S}/announcements`, only: ['index', 'create', 'edit'] }),
       { path: 'settings', component: p.settings, props: { platform: true }, meta: { title: 'Paramètres' } },
     ],
@@ -199,6 +202,12 @@ const routes = [
     component: RoleLayout,
     meta: { requiresAuth: true, allowWhenExpired: true },
     children: [{ path: '', component: p.profile, meta: { title: 'Mon profil' } }],
+  },
+  {
+    path: '/security',
+    component: RoleLayout,
+    meta: { requiresAuth: true, allowWhenExpired: true },
+    children: [{ path: '', component: p.security, meta: { title: 'Sécurité du compte' } }],
   },
   { path: '/:pathMatch(.*)*', component: p.notFound, meta: { title: 'Page introuvable' } },
 ];
@@ -237,7 +246,10 @@ router.beforeEach((to) => {
       };
     }
     if (space && !allowedIn(auth, space)) return auth.homePath;
-    if (to.path === '/profile' && auth.isPlatform) return auth.homePath;
+    if (to.path === '/profile' && auth.isPlatform) return '/security';
+    // Mot de passe provisoire ou double authentification obligatoire : rien d'autre avant
+    if (auth.securityAction && to.path !== '/security') return '/security';
+    if (to.path === '/security' && auth.hasRole('parent') && !auth.hasRole(...STAFF_ROLES, 'teacher')) return auth.homePath;
     const permission = to.meta.permission;
     if (permission && !auth.can(permission) && !(space === 'teacher')) return auth.homePath;
     // Abonnement impayé après le délai de grâce : l'administrateur ne peut que renouveler

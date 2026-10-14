@@ -4,7 +4,7 @@ import { SUPERADMIN_NAV } from '@/config/navigation';
 </script>
 
 <template>
-  <AppShell :nav="SUPERADMIN_NAV" space="Console plateforme" dark>
+  <AppShell :nav="SUPERADMIN_NAV" space="Console plateforme" notifications-to="/superadmin/notifications" dark>
     <template #topbar><span class="text-[13px] font-medium text-muted">Ardoise · administration de la plateforme</span></template>
     <RouterView :key="$route.path" />
   </AppShell>

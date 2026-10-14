@@ -48,6 +48,7 @@ export const ADMIN_NAV = [
       { label: 'Documents', to: '/admin/documents', icon: 'folder', permission: 'documents.view', feature: 'documents' },
       { label: 'Utilisateurs', to: '/admin/users', icon: 'shield', permission: 'users.view' },
       { label: 'Rôles et permissions', to: '/admin/roles', icon: 'key', permission: 'roles.view' },
+      { label: 'Journal d’activité', to: '/admin/activity-log', icon: 'activity', permission: 'activity_log.view' },
       { label: 'Abonnement', to: '/admin/billing', icon: 'refresh', roles: ['school_admin', 'director'] },
       { label: 'Support', to: '/admin/support', icon: 'help' },
       { label: 'Guide d’utilisation', to: '/guide?pour=ecole', icon: 'book' },
@@ -80,6 +81,7 @@ export const TEACHER_NAV = [
     items: [
       { label: 'Notifications', to: '/teacher/notifications', icon: 'bell' },
       { label: 'Mon profil', to: '/profile', icon: 'user' },
+      { label: 'Sécurité du compte', to: '/security', icon: 'shield' },
       { label: 'Guide d’utilisation', to: '/guide?pour=enseignant', icon: 'book' },
     ],
   },
@@ -108,6 +110,7 @@ export const SUPERADMIN_NAV = [
       { label: 'Tableau de bord', to: '/superadmin/dashboard', icon: 'dashboard' },
       { label: 'Statistiques', to: '/superadmin/analytics', icon: 'chart' },
       { label: 'Utilisation', to: '/superadmin/usage', icon: 'activity' },
+      { label: 'Alertes', to: '/superadmin/notifications', icon: 'bell' },
     ],
   },
   {
@@ -133,6 +136,7 @@ export const SUPERADMIN_NAV = [
       { label: 'Demandes de démo', to: '/superadmin/demo-requests', icon: 'mail' },
       { label: 'Annonces', to: '/superadmin/announcements', icon: 'megaphone' },
       { label: 'Paramètres', to: '/superadmin/settings', icon: 'sliders' },
+      { label: 'Sécurité du compte', to: '/security', icon: 'shield' },
       { label: 'Guide d’utilisation', to: '/guide?pour=plateforme', icon: 'book' },
     ],
   },

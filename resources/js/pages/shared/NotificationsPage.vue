@@ -1,5 +1,5 @@
 <script setup>
-/** Notifications de l'utilisateur connecté (administration, enseignant, parent). */
+/** Notifications de l'utilisateur connecté (administration, enseignant, parent) ou alertes de la console plateforme. */
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import PageHeader from '@/components/ui/PageHeader.vue';
@@ -12,11 +12,22 @@ import { notificationsApi } from '@/services/api';
 import { useUiStore } from '@/stores/ui';
 import { formatDateTime } from '@/utils/format';
 
-const props = defineProps({ compact: { type: Boolean, default: false } });
+const props = defineProps({
+  compact: { type: Boolean, default: false },
+  /** « notifications » (école) ou « platform/notifications » (console superadmin) */
+  base: { type: String, default: 'notifications' },
+});
+const platform = props.base.startsWith('platform');
 const ui = useUiStore();
 const router = useRouter();
 
-const TYPES = [
+const PLATFORM_TYPES = [
+  { value: '', label: 'Toutes' },
+  { value: 'unread', label: 'Non lues' },
+  { value: 'subscription.', label: 'Abonnements' },
+  { value: 'backup.', label: 'Sauvegardes' },
+];
+const SCHOOL_TYPES = [
   { value: '', label: 'Toutes' },
   { value: 'unread', label: 'Non lues' },
   { value: 'grade', label: 'Notes' },
@@ -25,7 +36,8 @@ const TYPES = [
   { value: 'report_card', label: 'Bulletins' },
   { value: 'announcement', label: 'Annonces' },
 ];
-const ICONS = { grade: 'pencil', attendance: 'check-circle', payment: 'wallet', report_card: 'file', announcement: 'megaphone', homework: 'list' };
+const TYPES = platform ? PLATFORM_TYPES : SCHOOL_TYPES;
+const ICONS = { 'subscription.paid': 'wallet', 'subscription.payment_failed': 'alert', 'subscription.expired': 'lock', 'subscription.grace': 'clock', 'subscription.ending': 'calendar', 'backup.failed': 'alert', grade: 'pencil', attendance: 'check-circle', payment: 'wallet', report_card: 'file', announcement: 'megaphone', homework: 'list' };
 
 const rows = ref([]);
 const meta = ref({ current_page: 1, per_page: 20, total: 0, last_page: 1, unread: 0 });
@@ -41,7 +53,7 @@ async function load() {
     const params = { page: page.value, per_page: 20 };
     if (type.value === 'unread') params.unread = 1;
     else if (type.value) params.filter = { type: type.value };
-    const res = await notificationsApi.list(params);
+    const res = await notificationsApi.list(params, props.base);
     rows.value = res.data;
     meta.value = res.meta;
   } catch (e) {
@@ -63,14 +75,14 @@ async function open(n) {
   if (!n.read) {
     n.read = true;
     meta.value.unread = Math.max(0, unread.value - 1);
-    notificationsApi.read(n.id).catch(() => {});
+    notificationsApi.read(n.id, props.base).catch(() => {});
   }
   if (n.link?.startsWith('/')) router.push(n.link);
 }
 
 async function readAll() {
   try {
-    await notificationsApi.readAll();
+    await notificationsApi.readAll(props.base);
     rows.value = rows.value.map((r) => ({ ...r, read: true }));
     meta.value.unread = 0;
     ui.toast('Toutes les notifications sont marquées comme lues.');
@@ -82,7 +94,7 @@ async function readAll() {
 
 <template>
   <div class="space-y-5" :class="props.compact ? 'mx-auto max-w-2xl' : ''">
-    <PageHeader title="Notifications" :subtitle="unread ? `${unread} non lue(s)` : 'Vous êtes à jour.'">
+    <PageHeader :title="platform ? 'Alertes de la plateforme' : 'Notifications'" :subtitle="unread ? `${unread} non lue(s)` : 'Vous êtes à jour.'">
       <template #actions><button type="button" class="btn btn-secondary" :disabled="!unread" @click="readAll"><AppIcon name="check" class="size-4" />Tout marquer comme lu</button></template>
     </PageHeader>
 

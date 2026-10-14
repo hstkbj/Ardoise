@@ -7,9 +7,11 @@ use App\Models\Central\Subscription;
 use App\Models\Central\SubscriptionPayment;
 use App\Models\Central\Tenant;
 use App\Services\Billing\SubscriptionBilling;
+use App\Services\Billing\SubscriptionInvoice;
 use App\Support\ListQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
@@ -70,6 +72,7 @@ class BillingController extends Controller
         $page->getCollection()->transform(fn (SubscriptionPayment $p) => [
             'id' => $p->id,
             'reference' => $p->reference,
+            'invoice_number' => $p->invoice_number,
             'customer' => $p->customer ?? $p->tenant?->admin_name,
             'tenant_name' => $p->tenant?->name,
             'plan' => $p->subscription?->plan?->name,
@@ -83,7 +86,7 @@ class BillingController extends Controller
     }
 
     /** Enregistre un paiement reçu hors ligne (virement, espèces…) et prolonge l'abonnement. */
-    public function storePayment(Request $request, SubscriptionBilling $billing): JsonResponse
+    public function storePayment(Request $request, SubscriptionBilling $billing, SubscriptionInvoice $invoices): JsonResponse
     {
         $data = $request->validate([
             'tenant_id' => ['required', 'integer', 'exists:central.tenants,id'],
@@ -114,8 +117,15 @@ class BillingController extends Controller
             $payment = $billing->markPaid($payment, $paidAt);
         } else {
             $payment->update(['status' => 'paid', 'paid_at' => $paidAt]);
+            $invoices->assignNumber($payment);
         }
 
-        return response()->json(['data' => ['id' => $payment->id, 'reference' => $payment->reference]], 201);
+        return response()->json(['data' => ['id' => $payment->id, 'reference' => $payment->reference, 'invoice_number' => $payment->refresh()->invoice_number]], 201);
+    }
+
+    /** GET /platform/payments/{id}/invoice : facture PDF (ou HTML imprimable). */
+    public function invoice(SubscriptionPayment $payment, SubscriptionInvoice $invoices): Response
+    {
+        return $invoices->download($payment);
     }
 }

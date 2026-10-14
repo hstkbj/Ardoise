@@ -7,6 +7,7 @@ use App\Http\Resources\MeResource;
 use App\Models\Central\Tenant;
 use App\Models\Tenant\ActivityLog;
 use App\Models\Tenant\User;
+use App\Services\Security\TwoFactorChallenge;
 use App\Services\Sms\SmsGateway;
 use App\Support\Phone;
 use App\Tenancy\TenantManager;
@@ -68,9 +69,61 @@ class AuthController extends Controller
             ], 402);
         }
 
+        // Double authentification : le mot de passe est bon, un code est encore attendu
+        if ($user->hasTwoFactorEnabled()) {
+            return response()->json([
+                'two_factor' => true,
+                'challenge' => app(TwoFactorChallenge::class)->create([
+                    'type' => 'tenant',
+                    'tenant_id' => $tenant->id,
+                    'user_id' => $user->id,
+                    'remember' => (bool) ($data['remember'] ?? false),
+                ]),
+                'message' => 'Saisissez le code de votre application d’authentification.',
+            ]);
+        }
+
         $user->forceFill(['last_login_at' => now(), 'status' => 'active'])->save();
 
         return $this->startSession($request, $user, $tenant, (bool) ($data['remember'] ?? false), 'login');
+    }
+
+    /** POST /auth/two-factor { challenge, code | recovery_code } : 2e étape de la connexion. */
+    public function twoFactor(Request $request, TwoFactorChallenge $challenges): JsonResponse
+    {
+        $data = $request->validate([
+            'challenge' => ['required', 'string', 'max:100'],
+            'code' => ['nullable', 'string', 'max:20'],
+            'recovery_code' => ['nullable', 'string', 'max:30'],
+        ]);
+
+        $challenge = $challenges->find($data['challenge']);
+
+        if (! $challenge || ($challenge['type'] ?? null) !== 'tenant') {
+            throw ValidationException::withMessages(['code' => 'Session de connexion expirée. Saisissez à nouveau votre mot de passe.']);
+        }
+
+        $tenant = Tenant::findOrFail($challenge['tenant_id']);
+        abort_if($tenant->billingState() === Tenant::STATE_SUSPENDED, 423, 'L’accès à cet établissement est suspendu.');
+        abort_if(tenant() && tenant()->id !== $tenant->id, 403);
+
+        $this->tenancy->connect($tenant);
+        $user = User::find($challenge['user_id']);
+
+        if (! $user || $user->status === 'suspended') {
+            $challenges->forget($data['challenge']);
+            throw ValidationException::withMessages(['code' => 'Ce compte n’est plus accessible.']);
+        }
+
+        if (! $user->passesTwoFactorChallenge($data['code'] ?? null, $data['recovery_code'] ?? null)) {
+            $challenges->fail($data['challenge']);
+            throw ValidationException::withMessages(['code' => 'Code incorrect.']);
+        }
+
+        $challenges->forget($data['challenge']);
+        $user->forceFill(['last_login_at' => now(), 'status' => 'active'])->save();
+
+        return $this->startSession($request, $user, $tenant, (bool) $challenge['remember'], filled($data['recovery_code'] ?? null) ? 'login.recovery_code' : 'login');
     }
 
     public function me(Request $request): MeResource

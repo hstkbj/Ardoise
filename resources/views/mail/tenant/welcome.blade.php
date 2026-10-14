@@ -18,7 +18,7 @@ L’espace de **{{ $schoolName }}** est prêt sur {{ config('app.name') }}. Vous
 Se connecter
 </x-mail::button>
 
-Pour votre sécurité, changez ce mot de passe dès votre première connexion (menu **Mon profil**).
+Pour votre sécurité, ce mot de passe est provisoire : il vous sera demandé d’en choisir un nouveau à la première connexion. Vous pourrez ensuite activer la double authentification (menu **Sécurité du compte**).
 
 @if ($planName)
 **Formule** : {{ $planName }}@if ($trialEndsAt) — période d’essai jusqu’au {{ $trialEndsAt }}@elseif ($expiresAt) — abonnement valable jusqu’au {{ $expiresAt }}@endif.

@@ -3,9 +3,11 @@
 namespace App\Mail;
 
 use App\Models\Central\SubscriptionPayment;
+use App\Services\Billing\SubscriptionInvoice;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -37,7 +39,22 @@ class SubscriptionPaidMail extends Mailable implements ShouldQueue
                 'planName' => $this->payment->plan?->name ?? $tenant->plan?->name,
                 'expiresAt' => $tenant->expires_at?->format('d/m/Y'),
                 'billingUrl' => $tenant->url('/admin/billing'),
+                'invoiceNumber' => $this->payment->invoice_number,
             ],
         );
+    }
+
+    /** Facture PDF jointe quand dompdf est installé (sinon disponible dans Administration → Abonnement). */
+    public function attachments(): array
+    {
+        $invoices = app(SubscriptionInvoice::class);
+
+        if (! $invoices->hasPdfRenderer() || $this->payment->status !== 'paid') {
+            return [];
+        }
+
+        return [
+            Attachment::fromData(fn () => $invoices->pdf($this->payment), $invoices->filename($this->payment))->withMime('application/pdf'),
+        ];
     }
 }
