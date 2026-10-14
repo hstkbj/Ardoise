@@ -38,6 +38,8 @@ final class ActivityLabels
         'student.deleted' => 'Élève supprimé',
         'student.archived' => 'Élève archivé',
         'student.transferred' => 'Élève transféré',
+        'student.unpaid_waiver_granted' => 'Dérogation impayés accordée',
+        'student.unpaid_waiver_removed' => 'Dérogation impayés retirée',
         'student.class_changed' => 'Changement de classe',
         'teacher.created' => 'Enseignant ajouté',
         'teacher.deleted' => 'Enseignant supprimé',

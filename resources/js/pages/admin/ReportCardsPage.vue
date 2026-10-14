@@ -74,6 +74,7 @@ async function publish(ids) {
   try {
     const out = await reportCardsApi.publish(ids, termId.value || meta.value?.term?.id);
     ui.toast(out?.message || 'Bulletins publiés.');
+    if (out?.blocked?.length) ui.error({ message: `Bloqués pour impayés : ${out.blocked.map((b) => b.name).join(', ')}. Accordez une dérogation depuis la liste des élèves si besoin.` });
     load();
   } catch (e) {
     ui.error(e);

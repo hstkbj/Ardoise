@@ -39,6 +39,7 @@ class StudentResource extends JsonResource
             ])),
             'average' => isset($this->latest_average) ? (float) $this->latest_average : null,
             'status' => $this->status,
+            'unpaid_waiver' => (bool) $this->unpaid_waiver,
         ];
     }
 }

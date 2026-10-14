@@ -142,8 +142,17 @@ class StudentController extends Controller
             'transfer' => $this->enrollments->transfer($student, $request->input('note')),
             'change-class' => $this->enrollments->changeClass($student, ClassRoom::findOrFail($request->validate(['class_id' => ['required', 'integer']])['class_id'])),
             'restore' => $this->restore($student),
+            'waive' => $this->setWaiver($student, true, $request->input('note')),
+            'unwaive' => $this->setWaiver($student, false, null),
             default => abort(404, 'Action inconnue.'),
         };
+    }
+
+    /** Dérogation à la règle « bulletins et impayés » pour cet élève. */
+    protected function setWaiver(Student $student, bool $waived, ?string $note): void
+    {
+        $student->update(['unpaid_waiver' => $waived, 'unpaid_waiver_note' => $waived ? $note : null]);
+        ActivityLog::record($waived ? 'student.unpaid_waiver_granted' : 'student.unpaid_waiver_removed', $student, ['note' => $note]);
     }
 
     protected function restore(Student $student): void

@@ -20,7 +20,8 @@ import { formatDate } from '@/utils/format';
             <div v-else class="flex items-center gap-3 px-5 py-4 text-muted">
               <AppIcon name="clock" class="size-5" />
               <span class="flex-1">{{ r.term }}</span>
-              <StatusBadge status="upcoming" label="Pas encore publié" />
+              <StatusBadge v-if="r.status === 'withheld'" status="pending" label="Indisponible : voir l'établissement" />
+              <StatusBadge v-else status="upcoming" label="Pas encore publié" />
             </div>
           </li>
         </ul>

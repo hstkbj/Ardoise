@@ -61,6 +61,8 @@ function visible(key, row) {
   if (key === 'suspend') return row.status !== 'suspended';
   if (key === 'activate') return row.status !== 'active';
   if (key === 'receipt') return Number(row.paid_amount) > 0;
+  if (key === 'waive') return !row.unpaid_waiver;
+  if (key === 'unwaive') return !!row.unpaid_waiver;
   if (key === 'invoice') return row.status === 'paid';
   return true;
 }

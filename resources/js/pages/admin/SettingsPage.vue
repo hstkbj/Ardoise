@@ -63,6 +63,8 @@ const SCHOOL = {
     { key: 'currency', label: 'Devise', type: 'select', options: [{ value: 'XOF', label: 'Franc CFA (XOF)' }, { value: 'XAF', label: 'Franc CFA (XAF)' }, { value: 'GNF', label: 'Franc guinéen (GNF)' }] },
     { key: 'receipt_prefix', label: 'Préfixe des reçus' },
     { key: 'late_after_days', label: 'Retard après (jours)', type: 'number' },
+    { key: 'report_card_unpaid_rule', label: 'Bulletins et impayés', type: 'select', options: [{ value: 'off', label: 'Aucune règle' }, { value: 'warn', label: 'Avertir (bulletin publié quand même)' }, { value: 'block', label: 'Bloquer la publication et la consultation' }], hint: 'Une dérogation peut être accordée élève par élève.' },
+    { key: 'report_card_unpaid_days', label: 'Seuil de retard de la règle (jours)', type: 'number', hint: 'Échéance impayée depuis plus de X jours.' },
     { key: 'methods', label: 'Moyens de paiement acceptés', type: 'checkboxes', span: 2, optionsKey: 'paymentMethods' },
   ] },
 };

@@ -13,7 +13,7 @@ class Student extends TenantModel
 
     protected function casts(): array
     {
-        return ['birth_date' => 'date'];
+        return ['birth_date' => 'date', 'unpaid_waiver' => 'boolean'];
     }
 
     public function enrollments(): HasMany

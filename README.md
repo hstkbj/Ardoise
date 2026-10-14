@@ -145,6 +145,7 @@ RBAC maison dans la base de chaque école (`roles`, `permissions`, `permission_r
 - Valider une évaluation exige une note ou une absence pour chaque élève, la **verrouille** et la rend visible aux parents ; seul le personnel autorisé peut la déverrouiller (action journalisée).
 - Les parents ne voient que les notes validées et les bulletins publiés.
 - Frais : échéances générées par élève (montant réparti, le reste sur la dernière) ; un encaissement est affecté aux échéances les plus anciennes ; « en retard » est calculé.
+- Impayés et bulletins : réglage Finance `report_card_unpaid_rule` (`off`, `warn`, `block`) et `report_card_unpaid_days` (30 j par défaut, distinct de `late_after_days`). Un élève est en situation d'impayé s'il a une échéance non soldée plus ancienne que ce seuil. `warn` : avertissement à la publication ; `block` : le bulletin n'est pas publié et reste inaccessible au parent (403, statut « withheld »). Une dérogation par élève (`waive` / `unwaive`, motif facultatif, journalisée) lève le blocage.
 - Une seule année scolaire active ; une année clôturée n'accepte plus de notes ni d'absences.
 - Notifications : in-app (toujours), e-mail et SMS selon les paramètres de l'école ; SMS seulement pour les messages urgents (absence, bulletin).
 
@@ -260,8 +261,12 @@ php artisan test
 - `tests/Feature/AccountSecurityTest.php` : mot de passe provisoire, double authentification (activation, connexion en deux étapes, codes de secours, rejeu, obligation), vecteurs RFC 6238.
 - `tests/Feature/ImportExportTest.php` : import d'élèves (CSV et Excel), de notes et de paiements, refus complet d'un fichier en erreur.
 - `tests/Feature/ActivityLogTest.php`, `SubscriptionInvoiceAndAlertsTest.php`, `SmsGatewayTest.php`, `DatabaseBackupTest.php` : journal, factures et alertes plateforme, fournisseurs SMS, sauvegardes.
+- `tests/Feature/EnrollmentAndPaymentTest.php`, `ReportCardTest.php`, `AccessScopeTest.php`, `UnpaidRuleTest.php` : inscription, encaissement manuel, bulletins, portée des enseignants et des parents, règle des impayés et dérogation.
+- `tests/Feature/FedaPayWebhookTest.php` : webhook FedaPay (signature, idempotence, échec).
 
 ## 12. Déploiement
+
+Guide complet : [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md). Docker : `docker compose up -d --build` (Dockerfile, `docker-compose.yml`, `docker/nginx`, `docker/supervisor`).
 
 - MySQL : `DB_CONNECTION=mysql`, `TENANT_DB_CONNECTION=mysql` ; l'utilisateur doit pouvoir `CREATE DATABASE`.
 - DNS générique `*.votredomaine` vers le serveur, `TENANCY_BASE_DOMAIN=votredomaine`, `TENANCY_CENTRAL_DOMAINS=votredomaine,www.votredomaine`, `SESSION_DOMAIN=.votredomaine`, `SANCTUM_STATEFUL_DOMAINS=votredomaine,*.votredomaine`.

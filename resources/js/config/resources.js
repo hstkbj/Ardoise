@@ -169,6 +169,11 @@ export const RESOURCES = {
       { key: 'class_id', label: 'Classe', optionsKey: 'classes' },
       { key: 'status', label: 'Statut', ...s(['active', 'transferred', 'archived']) },
     ],
+    rowActions: ['view', 'edit', 'waive', 'unwaive', 'delete'],
+    customActions: {
+      waive: { label: 'Dérogation impayés', icon: 'check-circle', perm: 'update', confirm: 'Le bulletin de cet élève restera accessible malgré les impayés.' },
+      unwaive: { label: 'Retirer la dérogation', icon: 'x', perm: 'update' },
+    },
     selectable: true,
     bulkActions: [
       { key: 'transfer', label: 'Transférer' },

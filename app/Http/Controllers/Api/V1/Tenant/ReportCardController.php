@@ -9,6 +9,7 @@ use App\Models\Tenant\Student;
 use App\Models\Tenant\Term;
 use App\Models\Tenant\User;
 use App\Services\ReportCardService;
+use App\Services\UnpaidRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -106,9 +107,21 @@ class ReportCardController extends Controller
 
         abort_if($missing->isNotEmpty(), 422, 'Générez d’abord les bulletins avant de les publier.');
 
-        $count = $this->cards->publish($data['ids'], $term);
+        $rule = app(UnpaidRule::class);
+        $statuses = Student::whereIn('id', $data['ids'])->get()->mapWithKeys(fn (Student $s) => [$s->id => ['student' => $s] + $rule->status($s)]);
+        $blocked = $statuses->where('blocked', true);
+        $warned = $statuses->where('warned', true);
+        $count = $this->cards->publish(array_values(array_diff($data['ids'], $blocked->keys()->all())), $term);
+        $describe = fn ($rows) => $rows->map(fn ($r) => ['id' => $r['student']->id, 'name' => $r['student']->full_name, 'late_amount' => $r['late_amount']])->values();
 
-        return response()->json(['message' => "{$count} bulletin(s) publiés aux parents.", 'count' => $count]);
+        return response()->json([
+            'message' => "{$count} bulletin(s) publiés aux parents."
+                .($blocked->isNotEmpty() ? ' '.$blocked->count().' bloqué(s) pour impayés.' : '')
+                .($warned->isNotEmpty() ? ' '.$warned->count().' publié(s) avec impayés (avertissement).' : ''),
+            'count' => $count,
+            'blocked' => $describe($blocked),
+            'warnings' => $describe($warned),
+        ]);
     }
 
     /** GET /report-cards/{student}/pdf : PDF si dompdf est installé, sinon HTML imprimable. */
@@ -146,6 +159,7 @@ class ReportCardController extends Controller
         if ($user->hasRole('parent') && ! $user->isStaff() && ! $user->hasRole('teacher')) {
             abort_unless($user->parentProfile?->hasChild($student->id), 403);
             abort_unless(ReportCard::where('student_id', $student->id)->where('term_id', $term->id)->where('status', 'published')->exists(), 404, 'Ce bulletin n’est pas encore publié.');
+            abort_if(app(UnpaidRule::class)->blocks($student), 403, 'Bulletin indisponible : régularisez la situation financière auprès de l’établissement.');
 
             return;
         }

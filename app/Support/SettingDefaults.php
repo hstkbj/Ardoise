@@ -22,7 +22,7 @@ class SettingDefaults
             'notifications' => ['absence_notify' => 'immediate', 'sms_sender' => 'ARDOISE'],
             'notification_rules' => ['rules' => NotificationEvents::defaults()],
             'online_payments' => ['enabled' => 'no', 'environment' => 'sandbox', 'public_key' => null, 'secret_key' => null, 'webhook_secret' => null],
-            'finance' => ['currency' => 'XOF', 'receipt_prefix' => 'REC-', 'methods' => ['Espèces', 'Mobile money', 'Virement'], 'late_after_days' => 30],
+            'finance' => ['currency' => 'XOF', 'receipt_prefix' => 'REC-', 'methods' => ['Espèces', 'Mobile money', 'Virement'], 'late_after_days' => 30, 'report_card_unpaid_rule' => 'off', 'report_card_unpaid_days' => 30],
             default => [],
         };
     }

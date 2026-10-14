@@ -28,6 +28,7 @@ use App\Services\Payments\PaymentGateway;
 use App\Services\Payments\SchoolFedaPay;
 use App\Services\PaymentService;
 use App\Services\ReportCardService;
+use App\Services\UnpaidRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -294,7 +295,8 @@ class ParentPortalController extends Controller
                     'due_date' => $a->due_date?->toDateString(),
                     'status' => $a->status === 'paid' ? 'paid' : ($a->displayStatus() === 'overdue' ? 'overdue' : 'pending'),
                 ]),
-            'report_cards' => $this->reportCards($student, $class?->academic_year_id),
+            'finance_notice' => $this->financeNotice($student),
+            'report_cards' => $this->reportCards($student, $class?->academic_year_id, app(UnpaidRule::class)->blocks($student)),
         ];
     }
 
@@ -308,7 +310,19 @@ class ParentPortalController extends Controller
             ->map(fn ($h) => ['id' => $h->id, 'subject' => $h->subject?->name, 'title' => $h->title, 'instructions' => $h->instructions, 'due' => $h->due_date->toDateString(), 'done' => in_array($h->id, $done)]);
     }
 
-    protected function reportCards(Student $student, ?int $yearId): Collection
+    /**
+     * Avertissement impayés affiché à la famille (règle « bulletins et impayés » active et sans dérogation).
+     *
+     * @return array{mode: string, blocked: bool, late_amount: int}|null
+     */
+    protected function financeNotice(Student $student): ?array
+    {
+        $status = app(UnpaidRule::class)->status($student);
+
+        return $status['applies'] ? ['mode' => $status['mode'], 'blocked' => $status['blocked'], 'late_amount' => $status['late_amount']] : null;
+    }
+
+    protected function reportCards(Student $student, ?int $yearId, bool $withheld = false): Collection
     {
         $published = ReportCard::with('term.academicYear')->where('student_id', $student->id)->where('status', 'published')->get()->keyBy('term_id');
         $terms = $yearId ? Term::where('academic_year_id', $yearId)->orderBy('position')->get() : collect();
@@ -317,14 +331,14 @@ class ParentPortalController extends Controller
             'id' => $t->id,
             'term_id' => $t->id,
             'term' => $t->name,
-            'status' => $published->has($t->id) ? 'published' : 'upcoming',
-            'published_at' => $published->get($t->id)?->published_at,
+            'status' => $published->has($t->id) ? ($withheld ? 'withheld' : 'published') : 'upcoming',
+            'published_at' => $withheld ? null : $published->get($t->id)?->published_at,
         ])->concat($published->reject(fn ($c) => $terms->contains('id', $c->term_id))->map(fn ($c) => [
             'id' => $c->term_id,
             'term_id' => $c->term_id,
             'term' => $c->term->academicYear->name.' — '.$c->term->name,
-            'status' => 'published',
-            'published_at' => $c->published_at,
+            'status' => $withheld ? 'withheld' : 'published',
+            'published_at' => $withheld ? null : $c->published_at,
         ]))->values();
     }
 

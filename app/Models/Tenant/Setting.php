@@ -29,6 +29,12 @@ class Setting extends TenantModel
         return static::section($section)[$key] ?? $default;
     }
 
+    /** Vide le cache mémoire (changement d'école, tests). */
+    public static function flushCache(): void
+    {
+        static::$memo = [];
+    }
+
     public static function put(string $section, array $values): array
     {
         $merged = array_merge(static::section($section), $values);
