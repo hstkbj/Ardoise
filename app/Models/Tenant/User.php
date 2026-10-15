@@ -24,6 +24,8 @@ class User extends Authenticatable
 
     protected ?array $permissionCache = null;
 
+    protected ?array $campusIdsCache = null;
+
     protected function casts(): array
     {
         return [
@@ -105,6 +107,25 @@ class User extends Authenticatable
     public function isTeacherOnly(): bool
     {
         return $this->hasRole('teacher') && ! $this->isStaff();
+    }
+
+    /**
+     * Sites auxquels le personnel est limité ; null = tous les sites (administrateur, personnel
+     * sans rattachement à un site, ou profil sans périmètre de site : enseignant, parent). Lecture directe de la table
+     * pivot : le modèle Campus est lui-même filtré par cette portée.
+     *
+     * @return array<int, int>|null
+     */
+    public function restrictedCampusIds(): ?array
+    {
+        if (! $this->isStaff() || $this->isSchoolAdmin()) {
+            return null;
+        }
+
+        $ids = $this->campusIdsCache ??= \Illuminate\Support\Facades\DB::connection('tenant')
+            ->table('campus_user')->where('user_id', $this->id)->pluck('campus_id')->map(fn ($id) => (int) $id)->all();
+
+        return $ids === [] ? null : $ids;
     }
 
     public function permissionKeys(): array

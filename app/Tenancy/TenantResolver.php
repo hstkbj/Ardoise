@@ -15,8 +15,9 @@ use Illuminate\Support\Str;
  *  2. sur le domaine central, jeton mobile préfixé : « t_palmiers.12|xxxx »
  *     (le jeton est ensuite vérifié DANS la base de cette école : un préfixe
  *     falsifié ne donne accès à rien) ;
- *  3. sur le domaine central, session serveur ouverte après une connexion
- *     (code parent ou code établissement).
+ *
+ * Le domaine central n'ouvre aucune session d'école : le personnel se connecte depuis
+ * l'adresse de son établissement, le domaine central est réservé au superadmin.
  *
  * Aucun en-tête ni paramètre envoyé par le client ne désigne directement l'école.
  */
@@ -32,10 +33,6 @@ class TenantResolver
 
         if ($code = $this->tokenTenantCode($request)) {
             return Tenant::where('code', $code)->first();
-        }
-
-        if ($request->hasSession() && ($id = $request->session()->get('tenant_id'))) {
-            return Tenant::find($id);
         }
 
         return null;

@@ -114,7 +114,7 @@ class AnnouncementController extends Controller
             'body' => $data['body'],
             'audiences' => $data['audiences'] ?? ['parents'],
             'channels' => array_values(array_unique(array_merge(['in_app'], $data['channels'] ?? []))),
-            'campus_id' => $data['school_id'] ?? null,
+            'campus_id' => tap($data['school_id'] ?? null, fn ($id) => app(\App\Services\CampusScope::class)->ensureAllows($id ? (int) $id : null)),
             'class_room_id' => $data['class_id'] ?? null,
             'status' => $data['status'] ?? 'published',
         ];

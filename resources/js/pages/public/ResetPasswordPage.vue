@@ -10,7 +10,6 @@ const ui = useUiStore();
 const form = reactive({
   login: String(route.query.login || ''),
   token: String(route.query.token || ''),
-  school_code: String(route.query.school_code || ''),
   password: '',
   password_confirmation: '',
 });
@@ -24,7 +23,7 @@ async function submit() {
   if (form.password !== form.password_confirmation) return (error.value = 'Les deux mots de passe ne correspondent pas.');
   sending.value = true;
   try {
-    await authApi.resetPassword({ ...form, school_code: form.school_code || undefined });
+    await authApi.resetPassword({ ...form });
     ui.toast('Mot de passe modifié. Vous pouvez vous connecter.');
     router.replace('/login');
   } catch (e) {

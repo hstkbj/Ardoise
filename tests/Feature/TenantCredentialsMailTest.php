@@ -77,7 +77,7 @@ class TenantCredentialsMailTest extends TestCase
 
         $this->assertNotSame($oldPassword, $newPassword);
         Auth::shouldUse('web');
-        $login = fn (string $password) => $this->postJson('/api/v1/auth/login', ['login' => 'ada@etoile.bj', 'password' => $password, 'school_code' => $tenant->code]);
+        $login = fn (string $password) => $this->postJson($this->schoolUrl('/api/v1/auth/login', $tenant), ['login' => 'ada@etoile.bj', 'password' => $password]);
         $login($oldPassword)->assertUnprocessable();
         $login($newPassword)->assertOk();
     }

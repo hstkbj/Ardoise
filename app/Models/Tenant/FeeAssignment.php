@@ -2,6 +2,7 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Concerns\RestrictedToUserCampuses;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 /** Échéance due par un élève. Le statut « overdue » est calculé à la lecture. */
 class FeeAssignment extends TenantModel
 {
+    use RestrictedToUserCampuses;
+
     protected function casts(): array
     {
         return ['amount' => 'integer', 'paid_amount' => 'integer', 'due_date' => 'date'];
@@ -63,5 +66,11 @@ class FeeAssignment extends TenantModel
             'partial', 'pending' => $query->where('status', $status)->where(fn ($q) => $q->whereNull('due_date')->orWhereDate('due_date', '>=', $today)),
             default => $query,
         };
+    }
+
+    /** @param  array<int, int>  $campusIds */
+    public function constrainToCampuses(Builder $query, array $campusIds): void
+    {
+        $query->whereHas('student');
     }
 }

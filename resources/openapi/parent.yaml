@@ -1,0 +1,592 @@
+openapi: 3.0.3
+info:
+  title: Ardoise — API parents (application mobile)
+  version: 1.0.0
+  description: |
+    API utilisée par l'application mobile des parents. Il n'existe pas d'espace parent sur le site web.
+
+    **Connexion.** Le parent saisit le code d'accès remis par l'établissement (ex. `K7QM-4XPA-9R2T`).
+    `POST /parent/login` renvoie un jeton `t_{école}.{id}|{secret}` : l'envoyer tel quel dans
+    `Authorization: Bearer …`. Le préfixe `t_{école}.` désigne l'école ; le serveur vérifie ensuite le jeton
+    dans la base de cette école. Le jeton fonctionne sur le domaine central comme sur l'adresse de l'école.
+    Un nouveau code généré par le secrétariat désactive l'ancien code (pas les jetons déjà émis : le
+    secrétariat peut aussi suspendre le compte).
+
+    **Erreurs.** `401` non authentifié · `403` enfant ou module non autorisé · `404` introuvable · `422` données
+    invalides (`errors` par champ) · `423` école suspendue · `429` trop de tentatives.
+
+    **Modules.** Les routes marquées *module* répondent `403` si le plan de l'école ne les inclut pas
+    (la liste figure dans `features` de `GET /auth/me`).
+servers:
+  - url: https://{host}/api/v1
+    variables:
+      host:
+        default: ardoise.example.com
+        description: Domaine central de la plateforme, ou adresse de l'école (ex. palmiers.ardoise.example.com)
+tags:
+  - name: Connexion
+  - name: Enfants
+  - name: Vie scolaire
+  - name: Paiements
+  - name: Communication
+  - name: Compte
+security:
+  - bearerAuth: []
+paths:
+  /parent/login:
+    post:
+      tags: [Connexion]
+      summary: Connexion par code d'accès
+      security: []
+      description: Limité à 5 essais par minute et 30 par heure et par adresse IP. Réservé à l'application mobile (refusé depuis une session web).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, example: K7QM-4XPA-9R2T, description: "Insensible à la casse et aux tirets" }
+                device_name: { type: string, example: iPhone de Mariam, maxLength: 100 }
+      responses:
+        '200':
+          description: Connecté
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Me' }
+                  token: { type: string, example: "t_palmiers.12|a1b2c3…" }
+                  token_type: { type: string, example: Bearer }
+        '403': { description: "Module « espace parent » absent du plan, ou appel depuis le web" }
+        '422': { $ref: '#/components/responses/Invalid' }
+        '423': { description: École suspendue }
+        '429': { description: Trop de tentatives }
+  /auth/me:
+    get:
+      tags: [Connexion]
+      summary: Profil du parent et modules disponibles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /auth/logout:
+    post:
+      tags: [Connexion]
+      summary: Déconnexion (révoque le jeton courant)
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /parent/children:
+    get:
+      tags: [Enfants]
+      summary: Enfants et résumé complet (écran d'accueil)
+      description: Notes, moyennes, absences, devoirs, échéances et bulletins de chaque enfant. Les sections des modules absents du plan sont vides.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Child' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /parent/children/{student}:
+    get:
+      tags: [Enfants]
+      summary: Résumé d'un enfant
+      parameters:
+        - { $ref: '#/components/parameters/Student' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Child' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /report-cards/{student}:
+    get:
+      tags: [Enfants]
+      summary: Bulletin publié d'un enfant (module notes)
+      description: |
+        `404` si le bulletin n'est pas encore publié ; `403` s'il est retenu par la règle des impayés de
+        l'école (`status: withheld` dans `report_cards`, sauf dérogation accordée à l'élève).
+      parameters:
+        - { $ref: '#/components/parameters/Student' }
+        - { name: term_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Bulletin (JSON) }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Bulletin pas encore publié }
+  /report-cards/{student}/pdf:
+    get:
+      tags: [Enfants]
+      summary: Bulletin en PDF (module notes)
+      parameters:
+        - { $ref: '#/components/parameters/Student' }
+        - { name: term_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: PDF
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /parent/timetable:
+    get:
+      tags: [Vie scolaire]
+      summary: Emploi du temps (module)
+      parameters:
+        - { name: student_id, in: query, schema: { type: integer }, description: Premier enfant par défaut }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/TimetableEntry' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /parent/attendance/{attendance}/justify:
+    post:
+      tags: [Vie scolaire]
+      summary: Justifier une absence (module)
+      parameters:
+        - { name: attendance, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 255 }
+                file: { type: string, format: binary, description: "jpg, png ou pdf, 5 Mo maximum" }
+      responses:
+        '200': { description: Justificatif envoyé au secrétariat }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Invalid' }
+  /parent/homework/{homework}/done:
+    post:
+      tags: [Vie scolaire]
+      summary: Marquer un devoir fait ou non fait (module)
+      parameters:
+        - { name: homework, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id]
+              properties:
+                student_id: { type: integer }
+                done: { type: boolean, default: true }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /parent/payments/{assignment}/checkout:
+    post:
+      tags: [Paiements]
+      summary: Payer une échéance (module finances)
+      description: |
+        Avec FedaPay activé pour l'école, la réponse contient `redirect_url` : ouvrir cette page dans le
+        navigateur du téléphone, puis appeler `POST /parent/payments/verify` au retour. Sinon, une demande de
+        paiement est créée et confirmée par la comptabilité de l'école.
+      parameters:
+        - { name: assignment, in: path, required: true, schema: { type: integer }, description: "Identifiant de l'échéance (`payments[].id` d'un enfant)" }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                method: { type: string, example: Mobile money }
+                phone: { type: string, example: "+22997000001" }
+                amount: { type: integer, minimum: 1, description: "FCFA ; plafonné au reste à payer (par défaut : tout le reste)" }
+      responses:
+        '201':
+          description: Paiement démarré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status: { type: string, example: redirect }
+                      provider: { type: string, example: fedapay }
+                      redirect_url: { type: string, format: uri }
+                      payment_id: { type: integer }
+                      reference: { type: string }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { description: Échéance déjà réglée ou données invalides }
+  /parent/payments/verify:
+    post:
+      tags: [Paiements]
+      summary: Vérifier un paiement au retour de FedaPay (module finances)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reference]
+              properties:
+                reference: { type: string, maxLength: 50 }
+      responses:
+        '200':
+          description: État du paiement (le webhook peut le confirmer plus tard)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      reference: { type: string }
+                      status: { type: string, enum: [pending, paid, failed, cancelled] }
+                      amount: { type: integer }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Référence inconnue }
+  /payments/{payment}/receipt:
+    get:
+      tags: [Paiements]
+      summary: Reçu de paiement (module finances)
+      parameters:
+        - { name: payment, in: path, required: true, schema: { type: integer }, description: "Identifiant de l'échéance (`payments[].id`)" }
+        - { name: record, in: query, schema: { type: integer }, description: Versement précis (par défaut le dernier versement confirmé) }
+      responses:
+        '200':
+          description: Reçu (PDF, ou page HTML imprimable si le PDF n'est pas installé)
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /parent/announcements:
+    get:
+      tags: [Communication]
+      summary: Annonces publiées pour les enfants (établissement, site, classe)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Announcement' }
+  /parent/documents:
+    get:
+      tags: [Communication]
+      summary: Documents des enfants et documents administratifs (module)
+      parameters:
+        - { name: student_id, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Document' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /documents/{document}/download:
+    get:
+      tags: [Communication]
+      summary: Télécharger un document (module)
+      parameters:
+        - { name: document, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Fichier }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /parent/document-requests:
+    post:
+      tags: [Communication]
+      summary: Demander un document au secrétariat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id]
+              properties:
+                student_id: { type: integer }
+                type: { type: string, example: Certificat de scolarité, maxLength: 100 }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /notifications:
+    get:
+      tags: [Communication]
+      summary: Notifications du parent
+      parameters:
+        - { name: unread, in: query, schema: { type: boolean } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: per_page, in: query, schema: { type: integer, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: Page de notifications ; `meta.unread` = nombre non lues
+  /notifications/{id}/read:
+    post:
+      tags: [Communication]
+      summary: Marquer une notification comme lue
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+  /notifications/read-all:
+    post:
+      tags: [Communication]
+      summary: Tout marquer comme lu
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+  /profile:
+    put:
+      tags: [Compte]
+      summary: Mettre à jour ses coordonnées de contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 150 }
+                email: { type: string, format: email, nullable: true }
+                phone: { type: string, maxLength: 30, nullable: true }
+      responses:
+        '200': { description: Profil mis à jour }
+        '422': { $ref: '#/components/responses/Invalid' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: "Jeton renvoyé par /parent/login, préfixe `t_{école}.` compris"
+  parameters:
+    Student:
+      name: student
+      in: path
+      required: true
+      schema: { type: integer }
+      description: Identifiant de l'enfant (`id` dans /parent/children)
+  responses:
+    Message:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+    Unauthenticated:
+      description: Jeton absent, expiré ou révoqué
+    Forbidden:
+      description: Enfant non rattaché au compte, module absent du plan, ou accès retenu
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Invalid:
+      description: Données invalides
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+              errors:
+                type: object
+                additionalProperties:
+                  type: array
+                  items: { type: string }
+  schemas:
+    Error:
+      type: object
+      properties:
+        message: { type: string }
+    Me:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        role: { type: string, example: parent }
+        parent_id: { type: integer }
+        tenant:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            code: { type: string }
+        features:
+          type: array
+          items: { type: string, example: grades }
+          description: Modules inclus dans le plan de l'école
+        online_payment: { type: boolean, description: "Paiement FedaPay activé pour l'école" }
+    Child:
+      type: object
+      properties:
+        id: { type: integer }
+        first_name: { type: string }
+        full_name: { type: string }
+        matricule: { type: string }
+        class_id: { type: integer, nullable: true }
+        class_name: { type: string, nullable: true }
+        school_name: { type: string, nullable: true }
+        head_teacher: { type: string, nullable: true }
+        general_average: { type: number, nullable: true, description: "Sur 20, période courante" }
+        rank: { type: integer, nullable: true }
+        class_size: { type: integer }
+        term: { type: string, nullable: true }
+        absences: { type: integer }
+        late: { type: integer }
+        evolution:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string, example: "12/10" }
+              value: { type: number }
+        grades:
+          type: array
+          items: { $ref: '#/components/schemas/Grade' }
+        subjects:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              average: { type: number, nullable: true }
+        attendance:
+          type: array
+          items: { $ref: '#/components/schemas/AttendanceRecord' }
+        homework:
+          type: array
+          items: { $ref: '#/components/schemas/Homework' }
+        payments:
+          type: array
+          items: { $ref: '#/components/schemas/FeeInstallment' }
+        finance_notice:
+          nullable: true
+          description: "Présent si la règle des impayés de l'école s'applique à l'enfant (sans dérogation)"
+          type: object
+          properties:
+            mode: { type: string, enum: [warn, block] }
+            blocked: { type: boolean }
+            late_amount: { type: integer, description: FCFA en retard }
+        report_cards:
+          type: array
+          items: { $ref: '#/components/schemas/ReportCardEntry' }
+    Grade:
+      type: object
+      properties:
+        id: { type: integer }
+        subject: { type: string }
+        title: { type: string }
+        date: { type: string, format: date }
+        score: { type: number, nullable: true }
+        max: { type: number }
+        coefficient: { type: number }
+        class_average: { type: number, nullable: true }
+        comment: { type: string, nullable: true }
+    AttendanceRecord:
+      type: object
+      properties:
+        id: { type: integer }
+        date: { type: string, format: date }
+        slot: { type: string, example: "08:00" }
+        type: { type: string, enum: [absent, late] }
+        minutes: { type: integer, nullable: true }
+        justified: { type: boolean }
+        reason: { type: string, nullable: true }
+    Homework:
+      type: object
+      properties:
+        id: { type: integer }
+        subject: { type: string, nullable: true }
+        title: { type: string }
+        instructions: { type: string, nullable: true }
+        due: { type: string, format: date }
+        done: { type: boolean }
+    FeeInstallment:
+      type: object
+      properties:
+        id: { type: integer, description: "À passer à /parent/payments/{assignment}/checkout" }
+        reference: { type: string }
+        fee_name: { type: string }
+        amount: { type: integer }
+        paid_amount: { type: integer }
+        remaining: { type: integer }
+        method: { type: string }
+        paid_at: { type: string, format: date, nullable: true }
+        due_date: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [paid, pending, overdue] }
+    ReportCardEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        term_id: { type: integer, description: "À passer en `term_id` de /report-cards/{student}" }
+        term: { type: string }
+        status:
+          type: string
+          enum: [upcoming, published, withheld]
+          description: "`withheld` : publié mais retenu (impayés) — afficher « voir l'établissement »"
+        published_at: { type: string, format: date-time, nullable: true }
+    TimetableEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        day: { type: integer, description: "0 = lundi … 5 = samedi" }
+        start: { type: string, example: "08:00" }
+        end: { type: string, example: "09:00" }
+        subject: { type: string, nullable: true }
+        teacher: { type: string }
+        room: { type: string, nullable: true }
+        class_name: { type: string, nullable: true }
+    Announcement:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        audience: { type: string }
+        author: { type: string }
+        published_at: { type: string, format: date, nullable: true }
+    Document:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        category: { type: string }
+        owner: { type: string }
+        student_id: { type: integer, nullable: true }
+        size: { type: string, example: 120 Ko }
+        mime: { type: string }
+        uploaded_at: { type: string, format: date }
+        download_url: { type: string, format: uri }

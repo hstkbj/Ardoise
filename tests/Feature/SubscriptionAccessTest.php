@@ -57,11 +57,11 @@ class SubscriptionAccessTest extends TestCase
         $tenant->update(['expires_at' => now()->subDays(30)]);
         $this->tokenFor('secretary', 'secretariat@ecole.test');
 
-        $this->postJson('/api/v1/auth/login', ['login' => 'secretariat@ecole.test', 'password' => 'password', 'school_code' => $tenant->code])
+        $this->postJson($this->schoolUrl('/api/v1/auth/login'), ['login' => 'secretariat@ecole.test', 'password' => 'password'])
             ->assertStatus(402)
             ->assertJsonPath('code', 'subscription_expired');
 
-        $this->postJson('/api/v1/auth/login', ['login' => 'admin@ecole.test', 'password' => 'admin-password', 'school_code' => $tenant->code])
+        $this->postJson($this->schoolUrl('/api/v1/auth/login'), ['login' => 'admin@ecole.test', 'password' => 'admin-password'])
             ->assertOk();
     }
 
@@ -80,7 +80,7 @@ class SubscriptionAccessTest extends TestCase
         $tenant = $this->createSchool(['status' => 'active']);
         $tenant->update(['status' => 'suspended']);
 
-        $this->postJson('/api/v1/auth/login', ['login' => 'admin@ecole.test', 'password' => 'admin-password', 'school_code' => $tenant->code])
+        $this->postJson($this->schoolUrl('/api/v1/auth/login'), ['login' => 'admin@ecole.test', 'password' => 'admin-password'])
             ->assertStatus(423);
     }
 

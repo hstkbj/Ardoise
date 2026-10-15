@@ -71,25 +71,25 @@ class AccountSecurityTest extends TestCase
             ->json('data.recovery_codes');
 
         $this->travel(1)->minutes();
-        $login = ['login' => 'admin@ecole.test', 'password' => 'admin-password', 'school_code' => $tenant->code];
-        $challenge = $this->postJson('/api/v1/auth/login', $login)
+        $login = ['login' => 'admin@ecole.test', 'password' => 'admin-password'];
+        $challenge = $this->postJson($this->schoolUrl('/api/v1/auth/login'), $login)
             ->assertOk()
             ->assertJsonPath('two_factor', true)
             ->assertJsonMissingPath('token')
             ->json('challenge');
 
-        $this->postJson('/api/v1/auth/two-factor', ['challenge' => $challenge, 'code' => '123456'])->assertUnprocessable();
-        $this->postJson('/api/v1/auth/two-factor', ['challenge' => $challenge, 'code' => Totp::code($secret)])
+        $this->postJson($this->schoolUrl('/api/v1/auth/two-factor'), ['challenge' => $challenge, 'code' => '123456'])->assertUnprocessable();
+        $this->postJson($this->schoolUrl('/api/v1/auth/two-factor'), ['challenge' => $challenge, 'code' => Totp::code($secret)])
             ->assertOk()
             ->assertJsonPath('token', fn ($value) => str_starts_with($value, 't_'.$tenant->code.'.'));
 
         // Le même code ne peut pas resservir ; un code de secours ne sert qu'une fois
-        $challenge = $this->postJson('/api/v1/auth/login', $login)->json('challenge');
-        $this->postJson('/api/v1/auth/two-factor', ['challenge' => $challenge, 'code' => Totp::code($secret)])->assertUnprocessable();
-        $this->postJson('/api/v1/auth/two-factor', ['challenge' => $challenge, 'recovery_code' => strtolower($codes[0])])->assertOk();
+        $challenge = $this->postJson($this->schoolUrl('/api/v1/auth/login'), $login)->json('challenge');
+        $this->postJson($this->schoolUrl('/api/v1/auth/two-factor'), ['challenge' => $challenge, 'code' => Totp::code($secret)])->assertUnprocessable();
+        $this->postJson($this->schoolUrl('/api/v1/auth/two-factor'), ['challenge' => $challenge, 'recovery_code' => strtolower($codes[0])])->assertOk();
 
-        $challenge = $this->postJson('/api/v1/auth/login', $login)->json('challenge');
-        $this->postJson('/api/v1/auth/two-factor', ['challenge' => $challenge, 'recovery_code' => $codes[0]])->assertUnprocessable();
+        $challenge = $this->postJson($this->schoolUrl('/api/v1/auth/login'), $login)->json('challenge');
+        $this->postJson($this->schoolUrl('/api/v1/auth/two-factor'), ['challenge' => $challenge, 'recovery_code' => $codes[0]])->assertUnprocessable();
     }
 
     public function test_a_login_challenge_is_destroyed_after_five_wrong_codes(): void
@@ -101,14 +101,14 @@ class AccountSecurityTest extends TestCase
             $admin->confirmTwoFactor();
         });
 
-        $challenge = $this->postJson('/api/v1/auth/login', ['login' => 'admin@ecole.test', 'password' => 'admin-password', 'school_code' => $tenant->code])->json('challenge');
+        $challenge = $this->postJson($this->schoolUrl('/api/v1/auth/login'), ['login' => 'admin@ecole.test', 'password' => 'admin-password'])->json('challenge');
 
         foreach (range(1, 5) as $attempt) {
-            $this->postJson('/api/v1/auth/two-factor', ['challenge' => $challenge, 'code' => '000000'])->assertUnprocessable();
+            $this->postJson($this->schoolUrl('/api/v1/auth/two-factor'), ['challenge' => $challenge, 'code' => '000000'])->assertUnprocessable();
         }
 
         $secret = $this->inSchool(fn () => User::where('email', 'admin@ecole.test')->first()->two_factor_secret);
-        $this->postJson('/api/v1/auth/two-factor', ['challenge' => $challenge, 'code' => Totp::code($secret)])
+        $this->postJson($this->schoolUrl('/api/v1/auth/two-factor'), ['challenge' => $challenge, 'code' => Totp::code($secret)])
             ->assertUnprocessable()
             ->assertJsonPath('errors.code.0', 'Session de connexion expirée. Saisissez à nouveau votre mot de passe.');
     }

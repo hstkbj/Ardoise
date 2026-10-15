@@ -2,11 +2,15 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Concerns\RestrictedToUserCampuses;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Homework extends TenantModel
 {
+    use RestrictedToUserCampuses;
+
     protected $table = 'homework';
 
     protected function casts(): array
@@ -32,5 +36,11 @@ class Homework extends TenantModel
     public function submissions(): HasMany
     {
         return $this->hasMany(HomeworkSubmission::class);
+    }
+
+    /** @param  array<int, int>  $campusIds */
+    public function constrainToCampuses(Builder $query, array $campusIds): void
+    {
+        $query->whereHas('classRoom');
     }
 }

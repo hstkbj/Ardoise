@@ -21,8 +21,7 @@ class TimetableController extends Controller
         $teacherId = $this->teacherId() ?? $request->integer('teacher_id') ?: null;
         $classId = $request->integer('class_id') ?: null;
 
-        $query = TimetableEntry::with(['subject', 'teacher', 'classRoom'])
-            ->whereHas('classRoom', fn ($q) => $q->where('academic_year_id', \App\Models\Tenant\AcademicYear::current()?->id));
+        $query = TimetableEntry::with(['subject', 'teacher', 'classRoom'])->whereHas('classRoom');
 
         if ($this->teacherId() || ($teacherId && ! $classId)) {
             $query->where('teacher_id', $teacherId);
@@ -93,17 +92,15 @@ class TimetableController extends Controller
             ->where('ends_at', '>', $data['start'])
             ->when($entry, fn ($e) => $e->whereKeyNot($entry->id));
 
-        $yearId = ClassRoom::find($data['class_id'])?->academic_year_id;
-
         if (TimetableEntry::where('class_room_id', $data['class_id'])->where($overlap)->exists()) {
             throw ValidationException::withMessages(['start' => 'La classe a déjà un cours sur ce créneau.']);
         }
 
-        if (! empty($data['teacher_id']) && TimetableEntry::where('teacher_id', $data['teacher_id'])->whereHas('classRoom', fn ($c) => $c->where('academic_year_id', $yearId))->where($overlap)->exists()) {
+        if (! empty($data['teacher_id']) && TimetableEntry::where('teacher_id', $data['teacher_id'])->where($overlap)->exists()) {
             throw ValidationException::withMessages(['teacher_id' => 'Cet enseignant a déjà un cours sur ce créneau.']);
         }
 
-        if (! empty($data['room']) && TimetableEntry::where('room', $data['room'])->whereHas('classRoom', fn ($c) => $c->where('academic_year_id', $yearId))->where($overlap)->exists()) {
+        if (! empty($data['room']) && TimetableEntry::where('room', $data['room'])->where($overlap)->exists()) {
             throw ValidationException::withMessages(['room' => 'Cette salle est déjà occupée sur ce créneau.']);
         }
 

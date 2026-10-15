@@ -2,13 +2,15 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Concerns\RestrictedToUserCampuses;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ParentProfile extends TenantModel
 {
-    use SoftDeletes;
+    use SoftDeletes, RestrictedToUserCampuses;
 
     protected $hidden = ['access_code'];
 
@@ -35,5 +37,11 @@ class ParentProfile extends TenantModel
     public function hasChild(int $studentId): bool
     {
         return $this->students()->whereKey($studentId)->exists();
+    }
+
+    /** @param  array<int, int>  $campusIds */
+    public function constrainToCampuses(Builder $query, array $campusIds): void
+    {
+        $query->where(fn (Builder $q) => $q->whereHas('students')->orWhereDoesntHave('students'));
     }
 }

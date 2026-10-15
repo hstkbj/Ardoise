@@ -2,6 +2,7 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Concerns\RestrictedToUserCampuses;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Teacher extends TenantModel
 {
-    use SoftDeletes;
+    use SoftDeletes, RestrictedToUserCampuses;
 
     protected function casts(): array
     {
@@ -51,5 +52,11 @@ class Teacher extends TenantModel
                 ->orWhereHas('classSubjects', fn ($s) => $s->where('teacher_id', $this->id)))
             ->pluck('id')
             ->all();
+    }
+
+    /** @param  array<int, int>  $campusIds */
+    public function constrainToCampuses(Builder $query, array $campusIds): void
+    {
+        $query->where(fn (Builder $q) => $q->whereHas('campuses')->orWhereDoesntHave('campuses'));
     }
 }

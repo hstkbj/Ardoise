@@ -10,7 +10,6 @@ import { useFormErrors } from '@/composables/useFormErrors';
 
 const auth = useAuthStore();
 const ui = useUiStore();
-const isParent = auth.hasRole('parent');
 
 const info = reactive({ name: auth.user?.name ?? '', email: auth.user?.email ?? '', phone: auth.user?.phone ?? '' });
 const pass = reactive({ current: '', password: '', password_confirmation: '' });
@@ -74,12 +73,7 @@ async function savePassword() {
       <div class="flex justify-end"><button type="submit" class="btn btn-primary" :disabled="savingInfo">Enregistrer</button></div>
     </form>
 
-    <section v-if="isParent" class="card space-y-2 p-5">
-      <h2 class="card-title">Connexion</h2>
-      <p class="text-sm text-muted">Vous vous connectez avec le code d’accès remis par l’établissement. En cas de perte, demandez-en un nouveau au secrétariat : l’ancien code sera immédiatement désactivé.</p>
-    </section>
-
-    <form v-else-if="!auth.isPlatform" class="card space-y-4 p-5" novalidate @submit.prevent="savePassword">
+    <form v-if="!auth.isPlatform" class="card space-y-4 p-5" novalidate @submit.prevent="savePassword">
       <h2 class="card-title">Mot de passe</h2>
       <div class="grid gap-4 sm:grid-cols-3">
         <div class="flex flex-col gap-1"><label for="p-cur" class="label">Actuel</label><input id="p-cur" v-model="pass.current" type="password" class="input" autocomplete="current-password" /><p v-if="passErrors.errors.value.current" class="text-xs text-danger-600">{{ passErrors.errors.value.current }}</p></div>

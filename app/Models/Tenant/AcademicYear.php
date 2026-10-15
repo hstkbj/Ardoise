@@ -16,9 +16,14 @@ class AcademicYear extends TenantModel
         return $this->hasMany(Term::class)->orderBy('position');
     }
 
-    public function classRooms(): HasMany
+    public function fees(): HasMany
     {
-        return $this->hasMany(ClassRoom::class);
+        return $this->hasMany(Fee::class);
+    }
+
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(Enrollment::class);
     }
 
     /** Année active, sinon la plus récente. */
@@ -30,5 +35,20 @@ class AcademicYear extends TenantModel
     public function isClosed(): bool
     {
         return $this->status === 'closed';
+    }
+
+    /**
+     * Les classes ne dépendent pas de l'année : les écritures (inscriptions, présences,
+     * évaluations) se font dans l'année courante, qui ne doit pas être clôturée.
+     */
+    public static function assertOpen(string $field = 'class_id'): self
+    {
+        $year = static::current();
+
+        if (! $year || $year->isClosed()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([$field => 'Aucune année scolaire ouverte : activez ou créez une année avant de continuer.']);
+        }
+
+        return $year;
     }
 }

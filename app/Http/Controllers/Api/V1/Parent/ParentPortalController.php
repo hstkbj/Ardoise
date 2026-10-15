@@ -281,7 +281,7 @@ class ParentPortalController extends Controller
                 ->map(fn ($a) => ['id' => $a->id, 'date' => $a->date->toDateString(), 'slot' => $a->slot, 'type' => $a->status, 'minutes' => $a->minutes_late, 'justified' => $a->is_justified, 'reason' => $a->reason]),
             'homework' => $class ? $this->homework($student, $class->id) : [],
             'payments' => FeeAssignment::with(['fee', 'lastPayment'])->where('student_id', $student->id)
-                ->whereHas('fee', fn ($q) => $q->where('academic_year_id', $class?->academic_year_id))
+                ->whereHas('fee', fn ($q) => $q->where('academic_year_id', $student->currentEnrollment?->academic_year_id))
                 ->orderBy('due_date')->get()
                 ->map(fn ($a) => [
                     'id' => $a->id,
@@ -296,7 +296,7 @@ class ParentPortalController extends Controller
                     'status' => $a->status === 'paid' ? 'paid' : ($a->displayStatus() === 'overdue' ? 'overdue' : 'pending'),
                 ]),
             'finance_notice' => $this->financeNotice($student),
-            'report_cards' => $this->reportCards($student, $class?->academic_year_id, app(UnpaidRule::class)->blocks($student)),
+            'report_cards' => $this->reportCards($student, $student->currentEnrollment?->academic_year_id, app(UnpaidRule::class)->blocks($student)),
         ];
     }
 

@@ -25,6 +25,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sessions + CSRF pour la SPA (Sanctum) ; jetons Bearer pour l'app mobile
         $middleware->statefulApi();
 
+        // Derrière un reverse proxy HTTPS (VPS, Docker) : TRUSTED_PROXIES=* ou une liste d'adresses
+        if ($proxies = env('TRUSTED_PROXIES')) {
+            $middleware->trustProxies(at: $proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        }
+
         $middleware->alias([
             'tenant' => IdentifyTenant::class,
             'tenant.active' => EnsureTenantIsActive::class,

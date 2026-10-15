@@ -13,6 +13,20 @@ use Illuminate\Http\Request;
 /** Site public : formules, demande de démonstration, newsletter. */
 class PublicController extends Controller
 {
+    /**
+     * Où suis-je ? Le domaine central n'ouvre que la console superadmin ; l'adresse d'une
+     * école n'ouvre que cette école. Sert à la page de connexion.
+     */
+    public function context(): JsonResponse
+    {
+        $tenant = tenant();
+
+        return response()->json(['data' => [
+            'central' => ! $tenant && app(\App\Tenancy\TenantResolver::class)->isCentralHost(request()->getHost()),
+            'school' => $tenant ? ['name' => $tenant->name, 'code' => $tenant->code] : null,
+        ]]);
+    }
+
     public function plans(): JsonResponse
     {
         return response()->json(['data' => Plan::where('status', 'active')->orderBy('id')->get()->map(fn ($p) => PlanController::present($p))]);

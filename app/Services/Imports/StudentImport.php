@@ -45,7 +45,7 @@ class StudentImport extends SpreadsheetImport
         $this->requireColumns($rows, 'nom', 'prenoms', 'classe');
 
         $year = AcademicYear::current();
-        $classes = ClassRoom::with('campus')->where('academic_year_id', $year?->id)->get();
+        $classes = ClassRoom::with('campus')->where('status', 'active')->get();
         $existing = Student::whereIn('matricule', array_filter(array_column($rows, 'matricule')))->get()->keyBy(fn ($s) => self::key($s->matricule));
         $seen = [];
         $clean = [];
@@ -153,8 +153,8 @@ class StudentImport extends SpreadsheetImport
         }
 
         if ($matches->count() === 1) {
-            if ($matches->first()->academicYear?->isClosed()) {
-                $this->error($row, 'L’année scolaire de cette classe est clôturée.');
+            if (! $year || $year->isClosed()) {
+                $this->error($row, 'Aucune année scolaire ouverte.');
             }
 
             return $matches->first();

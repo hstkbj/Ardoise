@@ -15,6 +15,8 @@
 | `votredomaine` | IP du serveur |
 | `*.votredomaine` | IP du serveur (wildcard : un sous-domaine par école) |
 
+**Adresses.** Le domaine central (`votredomaine`) ne sert qu'au superadmin et au site public. Chaque école se connecte uniquement depuis **son** adresse, `{code}.votredomaine` (ou un domaine personnalisé déclaré pour l'école) : le personnel et les enseignants ne peuvent pas se connecter depuis le domaine central. Les parents n'utilisent pas le web : ils se connectent avec leur code dans l'application mobile (`POST /api/v1/parent/login`, documentation sur `/api/docs`).
+
 Le certificat TLS doit couvrir `votredomaine` et `*.votredomaine` (wildcard, validation DNS-01 avec Let's Encrypt par exemple). Terminer le HTTPS sur un reverse proxy (Caddy, Traefik, Nginx) ou directement dans Nginx.
 
 ## 3. Variables `.env`
@@ -30,7 +32,9 @@ Partir de `.env.example`, puis renseigner :
 | `TENANCY_CENTRAL_DOMAINS` | `votredomaine,www.votredomaine` |
 | `TENANCY_TRIAL_DAYS`, `TENANCY_GRACE_DAYS`, `BILLING_REMINDER_DAYS` | essai, délai de grâce, rappels (`7,3,1`) |
 | `TENANCY_CREATE_DB_USERS` | `true` pour un utilisateur MySQL par école (droit `CREATE USER` requis) |
-| `SESSION_DOMAIN` | `.votredomaine` (point initial : session partagée par les sous-domaines) |
+| `SESSION_DOMAIN` | vide : chaque adresse (domaine central, école) garde sa propre session |
+| `TRUSTED_PROXIES` | `*` derrière un reverse proxy HTTPS sur le même serveur (Docker : le port 8080 doit alors n'être joignable que par ce proxy, voir `APP_BIND`) |
+| `API_DOCS` | `true` : Swagger de l'API parents sur `/api/docs` ; `false` pour le masquer |
 | `SANCTUM_STATEFUL_DOMAINS` | `votredomaine,*.votredomaine` |
 | `DB_CONNECTION`, `TENANT_DB_CONNECTION` | `mysql` |
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | base centrale (avec Docker : `DB_HOST=mysql`, utilisateur `root`) |
@@ -155,3 +159,131 @@ Avec Docker : `git pull && docker compose up -d --build`, puis `docker compose e
 - [ ] Sauvegardes quotidiennes, copie hors serveur, restauration testée
 - [ ] Webhooks FedaPay avec secret renseigné, `FEDAPAY_ENVIRONMENT=live` seulement après les tests
 - [ ] Pare-feu : seuls 80 et 443 (et SSH restreint) ouverts
+
+## 11. Pas à pas : VPS Hostinger (Docker)
+
+Hypothèses : domaine `ardoise-exemple.com`, VPS Ubuntu 24.04 (2 Go de RAM minimum, 4 Go conseillés), Docker. Un hébergement mutualisé Hostinger ne convient pas (pas de Docker, de worker permanent ni de sous-domaines génériques).
+
+### 11.1 Créer le VPS
+
+1. hPanel → VPS → choisir l'offre, puis le système **Ubuntu 24.04 avec Docker** (ou Ubuntu 24.04 seul : installer Docker ensuite avec `curl -fsSL https://get.docker.com | sh`).
+2. Définir le mot de passe root, ajouter votre clé SSH, noter l'adresse IP du VPS (`IP`).
+3. Se connecter : `ssh root@IP`, puis créer un utilisateur : `adduser deploy && usermod -aG docker,sudo deploy`, et se reconnecter avec `deploy`.
+4. Pare-feu (hPanel → VPS → Sécurité, ou `ufw`) : n'ouvrir que 22, 80 et 443.
+
+### 11.2 DNS et certificat HTTPS (wildcard)
+
+Les écoles vivent sous `*.ardoise-exemple.com` : il faut un enregistrement générique et un certificat qui le couvre.
+
+Option recommandée, gratuite et sans renouvellement : **Cloudflare**.
+
+1. Créer un compte Cloudflare, ajouter le domaine, puis remplacer les serveurs de noms chez le registrar (ou dans hPanel → Domaines → DNS / Serveurs de noms) par ceux indiqués par Cloudflare.
+2. Dans le DNS Cloudflare : `A  @  → IP` et `A  *  → IP`, nuage orange (proxy) activé.
+3. SSL/TLS → mode **Full (strict)**.
+4. SSL/TLS → Origin Server → *Create Certificate* : noms `ardoise-exemple.com` et `*.ardoise-exemple.com`, 15 ans. Enregistrer sur le VPS :
+   `/etc/ssl/ardoise/origin.pem` (certificat) et `/etc/ssl/ardoise/origin.key` (clé privée, `chmod 600`).
+
+Autre option sans Cloudflare : `certbot certonly --manual --preferred-challenges dns -d ardoise-exemple.com -d '*.ardoise-exemple.com'` (à renouveler à la main tous les 90 jours, ou avec le plugin DNS de votre fournisseur).
+
+### 11.3 Récupérer le code et configurer
+
+```bash
+git clone <depot> ardoise && cd ardoise
+cp .env.example .env
+nano .env
+```
+
+Renseigner au minimum :
+
+```
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://ardoise-exemple.com
+TENANCY_BASE_DOMAIN=ardoise-exemple.com
+TENANCY_CENTRAL_DOMAINS=ardoise-exemple.com,www.ardoise-exemple.com
+SANCTUM_STATEFUL_DOMAINS=ardoise-exemple.com,*.ardoise-exemple.com
+SESSION_DOMAIN=
+SESSION_SECURE_COOKIE=true
+TRUSTED_PROXIES=*
+APP_BIND=127.0.0.1
+DB_CONNECTION=mysql
+TENANT_DB_CONNECTION=mysql
+DB_PASSWORD=<mot de passe fort>
+SUPERADMIN_EMAIL=vous@ardoise-exemple.com
+SUPERADMIN_PASSWORD=<mot de passe fort>
+```
+
+Compléter avec SMTP, FedaPay, SMS et sauvegardes (section 3). `APP_KEY` est générée à l'étape suivante : la sauvegarder hors du serveur.
+
+### 11.4 Reverse proxy Nginx sur le VPS
+
+Le conteneur `app` n'écoute qu'en local (`APP_BIND=127.0.0.1`, port 8080) ; Nginx sur le VPS termine le HTTPS.
+
+```bash
+sudo apt install -y nginx
+sudo nano /etc/nginx/sites-available/ardoise
+```
+
+```nginx
+server {
+    listen 80;
+    server_name ardoise-exemple.com *.ardoise-exemple.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ardoise-exemple.com *.ardoise-exemple.com;
+
+    ssl_certificate     /etc/ssl/ardoise/origin.pem;
+    ssl_certificate_key /etc/ssl/ardoise/origin.key;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    client_max_body_size 20m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/ardoise /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Derrière Cloudflare, ne laisser entrer que ses adresses sur les ports 80/443 si vous le souhaitez (liste sur cloudflare.com/ips).
+
+### 11.5 Démarrer et initialiser
+
+```bash
+docker compose up -d --build
+docker compose exec app php artisan key:generate --force
+docker compose exec app php artisan migrate --force
+docker compose exec app php artisan db:seed --force
+docker compose exec app php artisan storage:link --force
+docker compose restart app queue scheduler      # prend en compte APP_KEY
+docker compose ps                               # app, queue, scheduler, mysql : « running » / « healthy »
+curl -I https://ardoise-exemple.com/up          # 200
+```
+
+### 11.6 Première école et premiers tests
+
+1. Ouvrir `https://ardoise-exemple.com`, se connecter avec le superadmin (seul compte accepté sur le domaine central), changer le mot de passe et activer la double authentification.
+2. Créer une école (code `palmiers`) : son administrateur reçoit ses identifiants par e-mail (vérifier que le conteneur `queue` tourne) et se connecte sur `https://palmiers.ardoise-exemple.com`.
+3. Vérifier : `https://palmiers.ardoise-exemple.com/login` affiche le nom de l'école ; la même connexion sur `https://ardoise-exemple.com/login` est refusée (réservée à la plateforme).
+4. Application mobile des parents : base `https://ardoise-exemple.com/api/v1`, documentation interactive sur `https://ardoise-exemple.com/api/docs`.
+5. Déclarer les webhooks FedaPay (section 3), tester un paiement sandbox, puis passer en `live`.
+
+### 11.7 Exploitation
+
+- Mise à jour : `git pull && docker compose up -d --build`, puis `docker compose exec app php artisan migrate --force && docker compose exec app php artisan tenants:migrate` (sauvegarde d'abord : `docker compose exec app php artisan backup:run`).
+- Sauvegardes : déjà planifiées chaque nuit à 01:30 ; copier régulièrement le dossier de sauvegarde, `.env` et `APP_KEY` hors du VPS, et activer les instantanés Hostinger.
+- Journaux : `docker compose logs -f app queue scheduler`.
+- Redémarrage du VPS : `restart: unless-stopped` relance les conteneurs ; Docker et Nginx démarrent avec le système.
+

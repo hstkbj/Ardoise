@@ -84,7 +84,10 @@ class AcademicYearController extends Controller
     public function close(AcademicYear $academicYear): AcademicYearResource
     {
         $this->authorize('academic_years.update');
-        $academicYear->update(['status' => 'closed']);
+        DB::connection('tenant')->transaction(function () use ($academicYear) {
+            $academicYear->update(['status' => 'closed']);
+            $academicYear->enrollments()->where('status', 'active')->update(['status' => 'completed', 'left_on' => now()->toDateString()]);
+        });
         ActivityLog::record('academic_year.closed', $academicYear);
 
         return new AcademicYearResource($academicYear->loadCount('terms'));
@@ -93,7 +96,7 @@ class AcademicYearController extends Controller
     public function destroy(AcademicYear $academicYear): JsonResponse
     {
         $this->authorize('academic_years.update');
-        abort_if($academicYear->classRooms()->exists(), 422, 'Cette année contient des classes : clôturez-la plutôt.');
+        abort_if($academicYear->enrollments()->exists() || $academicYear->fees()->exists(), 422, 'Cette année contient des inscriptions ou des frais : clôturez-la plutôt.');
         $academicYear->delete();
 
         return response()->json(['message' => 'Année supprimée.']);

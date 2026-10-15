@@ -110,7 +110,7 @@ class AttendanceController extends Controller
 
     protected function visibleClass(int $id): ClassRoom
     {
-        $class = ClassRoom::with('academicYear')->findOrFail($id);
+        $class = ClassRoom::findOrFail($id);
         $ids = $this->teacherClassIds();
         abort_if($ids !== null && ! in_array((int) $class->id, $ids, true), 403);
 

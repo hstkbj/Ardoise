@@ -3,7 +3,6 @@
 import { computed } from 'vue';
 import SchoolAdminLayout from './SchoolAdminLayout.vue';
 import TeacherLayout from './TeacherLayout.vue';
-import ParentLayout from './ParentLayout.vue';
 import SuperAdminLayout from './SuperAdminLayout.vue';
 import { useAuthStore, STAFF_ROLES } from '@/stores/auth';
 
@@ -12,7 +11,7 @@ const layout = computed(() => {
   if (auth.isPlatform) return SuperAdminLayout;
   if (auth.hasRole(...STAFF_ROLES)) return SchoolAdminLayout;
   if (auth.hasRole('teacher')) return TeacherLayout;
-  return ParentLayout;
+  return TeacherLayout;
 });
 </script>
 

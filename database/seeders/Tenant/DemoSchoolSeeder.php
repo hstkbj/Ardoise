@@ -84,7 +84,7 @@ class DemoSchoolSeeder extends Seeder
             ['Tle D', 'Tle', 1, 40, 'C01', 'ANG'], ['1re C', '1re', 1, 40, 'C03', 'HG'], ['CM2 A', 'CM2', 1, 35, 'P05', 'FRA'], ['CE2 A', 'CE2', 2, 35, 'P02', 'FRA'],
         ])->mapWithKeys(function ($c) use ($level, $campuses, $year, $teachers, $subjects) {
             $class = ClassRoom::create([
-                'name' => $c[0], 'level_id' => $level($c[1]), 'campus_id' => $campuses[$c[2]]->id, 'academic_year_id' => $year->id,
+                'name' => $c[0], 'level_id' => $level($c[1]), 'campus_id' => $campuses[$c[2]]->id,
                 'head_teacher_id' => $teachers[$c[5]]->id, 'capacity' => $c[3], 'room' => $c[4], 'status' => 'active',
             ]);
 

@@ -201,11 +201,8 @@ class AssessmentController extends Controller
             'max_score' => ['required', 'numeric', 'min:1', 'max:100'],
         ]);
 
-        $class = ClassRoom::with('academicYear')->findOrFail($data['class_id']);
-
-        if ($class->academicYear?->isClosed()) {
-            throw ValidationException::withMessages(['class_id' => 'Cette année scolaire est clôturée.']);
-        }
+        $class = ClassRoom::findOrFail($data['class_id']);
+        \App\Models\Tenant\AcademicYear::assertOpen();
 
         $classSubject = ClassSubject::firstOrCreate(
             ['class_room_id' => $class->id, 'subject_id' => $data['subject_id']],

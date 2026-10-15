@@ -15,9 +15,9 @@ use Illuminate\Validation\ValidationException;
  *
  *   POST /api/v1/parent/login { code: "K7QM-4XPA-9R2T", device_name?: "iPhone de Mariam" }
  *
- * Le serveur retrouve l'école et le parent à partir du code (empreinte en base
- * centrale), connecte la base de l'école et ouvre la session (SPA) ou renvoie
- * un jeton « t_{école}.{jeton} » pour l'application mobile.
+ * Réservé à l'application mobile : le serveur retrouve l'école et le parent à partir du
+ * code (empreinte en base centrale) et renvoie un jeton « t_{école}.{jeton} ».
+ * L'interface web n'a pas d'espace parent.
  */
 class ParentAuthController extends Controller
 {
@@ -25,6 +25,8 @@ class ParentAuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
+        abort_if($request->hasSession(), 403, 'L’espace parent est disponible dans l’application mobile.');
+
         $data = $request->validate([
             'code' => ['required', 'string', 'max:40'],
             'device_name' => ['nullable', 'string', 'max:100'],

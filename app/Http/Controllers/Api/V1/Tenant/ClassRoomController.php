@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ClassRoomResource;
-use App\Models\Tenant\AcademicYear;
 use App\Models\Tenant\ActivityLog;
 use App\Models\Tenant\ClassRoom;
 use App\Models\Tenant\ClassSubject;
@@ -21,14 +20,13 @@ class ClassRoomController extends Controller
         $this->authorize('classes.view');
 
         $query = $this->baseQuery()
-            ->when(! $request->input('filter.academic_year_id'), fn ($q) => $q->where('academic_year_id', AcademicYear::current()?->id))
             ->when($this->teacherClassIds() !== null, fn ($q) => $q->whereIn('id', $this->teacherClassIds()));
 
         return ClassRoomResource::collection(ListQuery::paginate($query, $request,
             search: ['name', 'room', 'level.name'],
             filters: [
                 'school_id' => 'campus_id',
-                'academic_year_id' => 'academic_year_id',
+                'academic_year_id' => fn ($q, $v) => $q->whereHas('enrollments', fn ($e) => $e->where('academic_year_id', $v)),
                 'level' => fn ($q, $v) => $q->whereHas('level', fn ($l) => $l->where('name', $v)),
                 'level_id' => 'level_id',
                 'status' => 'status',
@@ -118,7 +116,7 @@ class ClassRoomController extends Controller
 
     protected function baseQuery()
     {
-        return ClassRoom::with(['campus', 'level', 'headTeacher', 'academicYear'])
+        return ClassRoom::with(['campus', 'level', 'headTeacher'])
             ->withCount(['enrollments as students_count' => fn ($q) => $q->where('status', 'active')]);
     }
 
@@ -136,16 +134,17 @@ class ClassRoomController extends Controller
     protected function validated(Request $request, ?ClassRoom $class = null): array
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:50'],
+            'name' => ['required', 'string', 'max:50', Rule::unique('tenant.class_rooms', 'name')->where('campus_id', $request->input('school_id'))->ignore($class?->id)],
             'level_id' => ['nullable', 'integer', 'exists:tenant.levels,id'],
             'level' => ['nullable', 'string', 'exists:tenant.levels,name'],
             'school_id' => ['required', 'integer', 'exists:tenant.campuses,id'],
-            'academic_year_id' => ['nullable', 'integer', 'exists:tenant.academic_years,id'],
             'head_teacher_id' => ['nullable', 'integer', 'exists:tenant.teachers,id'],
             'capacity' => ['nullable', 'integer', 'min:1', 'max:500'],
             'room' => ['nullable', 'string', 'max:50'],
             'status' => ['nullable', Rule::in(['active', 'inactive'])],
         ]);
+
+        app(\App\Services\CampusScope::class)->ensureAllows((int) $data['school_id']);
 
         $levelId = $data['level_id'] ?? \App\Models\Tenant\Level::where('name', $data['level'] ?? null)->value('id');
         abort_unless($levelId, 422, 'Le niveau est obligatoire.');
@@ -154,7 +153,6 @@ class ClassRoomController extends Controller
             'name' => $data['name'],
             'level_id' => $levelId,
             'campus_id' => $data['school_id'],
-            'academic_year_id' => $data['academic_year_id'] ?? $class?->academic_year_id ?? AcademicYear::current()?->id,
             'head_teacher_id' => $data['head_teacher_id'] ?? null,
             'capacity' => $data['capacity'] ?? null,
             'room' => $data['room'] ?? null,

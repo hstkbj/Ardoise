@@ -7,7 +7,6 @@ import PublicLayout from '@/layouts/PublicLayout.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 const SchoolAdminLayout = () => import('@/layouts/SchoolAdminLayout.vue');
 const TeacherLayout = () => import('@/layouts/TeacherLayout.vue');
-const ParentLayout = () => import('@/layouts/ParentLayout.vue');
 const SuperAdminLayout = () => import('@/layouts/SuperAdminLayout.vue');
 const RoleLayout = () => import('@/layouts/RoleLayout.vue');
 
@@ -46,18 +45,6 @@ const p = {
   teacherDashboard: () => import('@/pages/teacher/TeacherDashboardPage.vue'),
   teacherClasses: () => import('@/pages/teacher/TeacherClassesPage.vue'),
 
-  parentDashboard: () => import('@/pages/parent/ParentDashboardPage.vue'),
-  children: () => import('@/pages/parent/ChildrenPage.vue'),
-  childShow: () => import('@/pages/parent/ChildShowPage.vue'),
-  parentGrades: () => import('@/pages/parent/GradesPage.vue'),
-  parentReportCards: () => import('@/pages/parent/ReportCardsPage.vue'),
-  parentReportCard: () => import('@/pages/parent/ReportCardViewPage.vue'),
-  parentAttendance: () => import('@/pages/parent/AttendancePage.vue'),
-  parentHomework: () => import('@/pages/parent/HomeworkPage.vue'),
-  parentTimetable: () => import('@/pages/parent/TimetablePage.vue'),
-  parentPayments: () => import('@/pages/parent/PaymentsPage.vue'),
-  parentAnnouncements: () => import('@/pages/parent/AnnouncementsPage.vue'),
-  parentDocuments: () => import('@/pages/parent/DocumentsPage.vue'),
 
   platformDashboard: () => import('@/pages/superadmin/PlatformDashboardPage.vue'),
   analytics: () => import('@/pages/superadmin/AnalyticsPage.vue'),
@@ -148,29 +135,6 @@ const routes = [
     ],
   },
 
-  // ── Espace parent ─────────────────────────────────────────────────────────
-  {
-    path: '/parent',
-    component: ParentLayout,
-    meta: { requiresAuth: true, space: 'parent' },
-    children: [
-      { path: '', redirect: '/parent/dashboard' },
-      { path: 'dashboard', component: p.parentDashboard, meta: { title: 'Accueil' } },
-      { path: 'children', component: p.children, meta: { title: 'Mes enfants' } },
-      { path: 'children/:id(\\d+)', component: p.childShow, meta: { title: 'Enfant' } },
-      { path: 'grades', component: p.parentGrades, meta: { feature: 'grades', title: 'Notes' } },
-      { path: 'report-cards', component: p.parentReportCards, meta: { feature: 'grades', title: 'Bulletins' } },
-      { path: 'report-cards/:id(\\d+)', component: p.parentReportCard, meta: { feature: 'grades', title: 'Bulletin' } },
-      { path: 'attendance', component: p.parentAttendance, meta: { feature: 'attendance', title: 'Absences' } },
-      { path: 'homework', component: p.parentHomework, meta: { feature: 'homework', title: 'Devoirs' } },
-      { path: 'timetable', component: p.parentTimetable, meta: { feature: 'timetable', title: 'Emploi du temps' } },
-      { path: 'payments', component: p.parentPayments, meta: { feature: 'finance', title: 'Paiements' } },
-      { path: 'announcements', component: p.parentAnnouncements, meta: { title: 'Annonces' } },
-      { path: 'documents', component: p.parentDocuments, meta: { feature: 'documents', title: 'Documents' } },
-      { path: 'notifications', component: p.notifications, props: { compact: true }, meta: { title: 'Alertes' } },
-    ],
-  },
-
   // ── Console plateforme ────────────────────────────────────────────────────
   {
     path: S,
@@ -223,7 +187,6 @@ function allowedIn(auth, space) {
   switch (space) {
     case 'admin': return auth.hasRole(...STAFF_ROLES);
     case 'teacher': return auth.hasRole('teacher');
-    case 'parent': return auth.hasRole('parent');
     case 'superadmin': return auth.isPlatform;
     default: return true;
   }
@@ -249,7 +212,6 @@ router.beforeEach((to) => {
     if (to.path === '/profile' && auth.isPlatform) return '/security';
     // Mot de passe provisoire ou double authentification obligatoire : rien d'autre avant
     if (auth.securityAction && to.path !== '/security') return '/security';
-    if (to.path === '/security' && auth.hasRole('parent') && !auth.hasRole(...STAFF_ROLES, 'teacher')) return auth.homePath;
     const permission = to.meta.permission;
     if (permission && !auth.can(permission) && !(space === 'teacher')) return auth.homePath;
     // Abonnement impayé après le délai de grâce : l'administrateur ne peut que renouveler

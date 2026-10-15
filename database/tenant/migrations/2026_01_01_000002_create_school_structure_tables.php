@@ -98,7 +98,6 @@ return new class extends Migration
         Schema::create('class_rooms', function (Blueprint $table) {
             $table->id();
             $table->foreignId('campus_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('academic_year_id')->constrained()->cascadeOnDelete();
             $table->foreignId('level_id')->constrained();
             $table->foreignId('head_teacher_id')->nullable()->constrained('teachers')->nullOnDelete();
             $table->string('name');
@@ -106,7 +105,7 @@ return new class extends Migration
             $table->string('room')->nullable();
             $table->string('status')->default('active');
             $table->timestamps();
-            $table->unique(['academic_year_id', 'campus_id', 'name']);
+            $table->unique(['campus_id', 'name']);
         });
 
         // Matière enseignée dans une classe : enseignant + coefficient propres à la classe

@@ -1,43 +1,38 @@
 <script setup>
 /**
  * Connexion.
- *  - Établissement (personnel, enseignants) : identifiant + mot de passe (+ code établissement hors sous-domaine)
- *  - Parent : code d'accès uniquement — le serveur retrouve l'école et le parent
- *  - Plateforme : console superadmin
+ *  - Adresse d'une école (palmiers.ardoise.app) : personnel et enseignants de cette école
+ *  - Domaine central : console superadmin uniquement
+ * Les parents utilisent l'application mobile.
  */
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/ui/AppIcon.vue';
+import { publicApi } from '@/services/api';
 import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
 const route = useRoute();
 const router = useRouter();
 
-const profiles = [
-  { key: 'school', label: 'Établissement', icon: 'building' },
-  { key: 'parent', label: 'Parent', icon: 'home' },
-  { key: 'superadmin', label: 'Plateforme', icon: 'shield' },
-];
-const profile = ref(['parent', 'superadmin'].includes(route.query.profile) ? route.query.profile : 'school');
-const form = reactive({ login: '', password: '', schoolCode: '', remember: true, code: '' });
+const context = ref(null);
+const contextError = ref('');
+const profile = computed(() => (context.value?.central ? 'superadmin' : 'school'));
+const unknownHost = computed(() => context.value && !context.value.central && !context.value.school);
+const form = reactive({ login: '', password: '', remember: true });
 const showPassword = ref(false);
 const error = ref('');
 // Double authentification : 2e étape après le mot de passe
 const challenge = ref('');
 const otp = reactive({ code: '', recovery: '', useRecovery: false });
 
-// Sur un sous-domaine d'école, le code établissement est inutile
-const onSchoolHost = computed(() => {
-  const host = window.location.hostname;
-  const parts = host.split('.');
-  return !/^\d+\.\d+\.\d+\.\d+$/.test(host) && parts.length > (host.endsWith('localhost') ? 1 : 2);
+onMounted(async () => {
+  try {
+    context.value = await publicApi.context();
+  } catch (e) {
+    contextError.value = e.message;
+  }
 });
-
-function formatCode(e) {
-  const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
-  form.code = raw.match(/.{1,4}/g)?.join('-') ?? '';
-}
 
 function goHome() {
   const redirect = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/') ? route.query.redirect : null;
@@ -70,23 +65,15 @@ function cancelTwoFactor(clearError = true) {
 async function submit() {
   if (challenge.value) return submitCode();
   error.value = '';
+  if (!form.login || !form.password) {
+    error.value = 'Renseignez votre identifiant et votre mot de passe.';
+    return;
+  }
   try {
-    if (profile.value === 'parent') {
-      if (form.code.replace(/-/g, '').length !== 12) {
-        error.value = 'Le code d’accès comporte 12 caractères (ex. ABCD-EF23-GH45).';
-        return;
-      }
-      await auth.loginWithCode(form.code);
-    } else {
-      if (!form.login || !form.password) {
-        error.value = 'Renseignez votre identifiant et votre mot de passe.';
-        return;
-      }
-      const out = await auth.login({ login: form.login.trim(), password: form.password, schoolCode: form.schoolCode.trim(), remember: form.remember, role: profile.value });
-      if (out?.two_factor) {
-        challenge.value = out.challenge;
-        return;
-      }
+    const out = await auth.login({ login: form.login.trim(), password: form.password, remember: form.remember, role: profile.value });
+    if (out?.two_factor) {
+      challenge.value = out.challenge;
+      return;
     }
     goHome();
   } catch (e) {
@@ -97,8 +84,11 @@ async function submit() {
 
 <template>
   <div>
-    <h1 class="text-2xl font-semibold tracking-tight">Connexion</h1>
-    <p class="mt-1 text-sm text-muted">Choisissez votre profil pour accéder à votre espace.</p>
+    <h1 class="text-2xl font-semibold tracking-tight">{{ context?.school ? context.school.name : context?.central ? 'Console plateforme' : 'Connexion' }}</h1>
+    <p class="mt-1 text-sm text-muted">{{ context?.central ? 'Accès réservé à l’équipe de la plateforme. Les établissements se connectent depuis leur propre adresse.' : 'Connectez-vous avec votre e-mail ou votre téléphone.' }}</p>
+
+    <p v-if="contextError" class="mt-6 rounded-lg bg-danger-50 px-3 py-2.5 text-sm text-danger-600" role="alert">{{ contextError }}</p>
+    <p v-else-if="unknownHost" class="mt-6 rounded-xl bg-warn-50 p-4 text-sm text-warn-700" role="alert">Cette adresse ne correspond à aucun établissement. Vérifiez le lien fourni par votre établissement.</p>
 
     <form v-if="challenge" class="mt-6 space-y-4" novalidate @submit.prevent="submit">
       <div class="flex gap-3 rounded-xl bg-mint p-4 text-[13px] text-body">
@@ -122,29 +112,12 @@ async function submit() {
       </div>
     </form>
 
-    <template v-else>
-    <div class="mt-6 grid grid-cols-3 gap-1 rounded-xl bg-white p-1 ring-1 ring-line" role="radiogroup" aria-label="Profil">
-      <button v-for="p in profiles" :key="p.key" type="button" role="radio" :aria-checked="profile === p.key" class="flex h-11 items-center justify-center gap-2 rounded-lg text-[13px] font-medium" :class="profile === p.key ? 'bg-brand-600 text-white' : 'text-body hover:bg-ground'" @click="profile = p.key; error = ''">
-        <AppIcon :name="p.icon" class="size-4" />{{ p.label }}
-      </button>
-    </div>
-
+    <template v-else-if="context && !unknownHost">
     <p v-if="route.query.expired" class="mt-6 rounded-xl bg-warn-50 p-4 text-sm text-warn-700" role="status">
       L’abonnement de votre établissement a expiré. Seul l’administrateur peut se connecter pour le renouveler.
     </p>
 
     <form class="mt-6 space-y-4" novalidate @submit.prevent="submit">
-      <template v-if="profile === 'parent'">
-        <div class="rounded-xl bg-mint p-4 text-[13px] text-body">
-          Saisissez le <b>code d’accès</b> remis par l’établissement de votre enfant. Aucun mot de passe n’est nécessaire.
-        </div>
-        <div class="flex flex-col gap-1">
-          <label for="code" class="label">Code d’accès</label>
-          <input id="code" :value="form.code" class="input h-14 text-center font-mono text-xl tracking-[0.2em] uppercase" placeholder="XXXX-XXXX-XXXX" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" inputmode="text" :aria-invalid="!!error" @input="formatCode" />
-        </div>
-      </template>
-
-      <template v-else>
         <div class="flex flex-col gap-1">
           <label for="login" class="label">{{ profile === 'superadmin' ? 'E-mail' : 'E-mail ou téléphone' }}</label>
           <input id="login" v-model="form.login" class="input" :type="profile === 'superadmin' ? 'email' : 'text'" autocomplete="username" :aria-invalid="!!error" />
@@ -159,21 +132,14 @@ async function submit() {
             <button type="button" class="absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center text-subtle hover:text-ink" :aria-label="showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'" @click="showPassword = !showPassword"><AppIcon name="eye" class="size-4" /></button>
           </div>
         </div>
-        <div v-if="profile === 'school' && !onSchoolHost" class="flex flex-col gap-1">
-          <label for="school-code" class="label">Code établissement</label>
-          <input id="school-code" v-model="form.schoolCode" class="input" placeholder="ex. palmiers" autocapitalize="none" spellcheck="false" />
-          <p class="text-xs text-subtle">Inutile si vous passez par l’adresse de votre école (ex. palmiers.ardoise.app).</p>
-        </div>
         <label class="flex items-center gap-2 text-sm text-body"><input v-model="form.remember" type="checkbox" class="size-4 accent-brand-600" />Rester connecté</label>
-      </template>
 
       <p v-if="error" class="rounded-lg bg-danger-50 px-3 py-2.5 text-sm text-danger-600" role="alert">{{ error }}</p>
 
       <button type="submit" class="btn btn-lg btn-primary w-full" :disabled="auth.loading">{{ auth.loading ? 'Connexion…' : 'Se connecter' }}</button>
     </form>
 
-    <p v-if="profile === 'parent'" class="mt-6 text-center text-[13px] text-muted">Code perdu ? Demandez-en un nouveau au secrétariat : l’ancien sera désactivé.</p>
     </template>
-    <p class="mt-4 text-center text-[13px]"><RouterLink :to="{ path: '/guide', query: { pour: profile === 'parent' ? 'parent' : 'ecole' } }" class="link">Besoin d’aide ? Consultez le guide d’utilisation</RouterLink></p>
+    <p class="mt-4 text-center text-[13px]"><RouterLink :to="{ path: '/guide', query: { pour: 'ecole' } }" class="link">Besoin d’aide ? Consultez le guide d’utilisation</RouterLink></p>
   </div>
 </template>

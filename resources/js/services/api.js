@@ -12,8 +12,6 @@ export const authApi = {
   login: (payload) => http.post('/auth/login', payload).then(data),
   /** POST /auth/two-factor { challenge, code | recovery_code } — 2e étape de connexion */
   twoFactor: (payload) => http.post('/auth/two-factor', payload).then(data),
-  /** POST /parent/login — parents, avec leur code d'accès uniquement */
-  parentLogin: (code) => http.post('/parent/login', { code }).then(data),
   me: () => http.get('/auth/me', { skipAuthRedirect: true }).then(data),
   logout: () => http.post('/auth/logout'),
   forgotPassword: (payload) => http.post('/auth/forgot-password', payload).then((r) => r.data),
@@ -153,18 +151,6 @@ export const billingApi = {
   invoicePath: (paymentId) => `/billing/payments/${paymentId}/invoice`,
 };
 
-export const parentApi = {
-  children: () => http.get('/parent/children').then(data),
-  announcements: () => http.get('/parent/announcements').then(data),
-  documents: (studentId) => http.get('/parent/documents', { params: { student_id: studentId } }).then(data),
-  requestDocument: (payload) => http.post('/parent/document-requests', payload).then((r) => r.data),
-  timetable: (studentId) => http.get('/parent/timetable', { params: { student_id: studentId } }).then(data),
-  justify: (attendanceId, payload) => send('post', `/parent/attendance/${attendanceId}/justify`, payload),
-  homeworkDone: (homeworkId, studentId, done) => http.post(`/parent/homework/${homeworkId}/done`, { student_id: studentId, done }).then((r) => r.data),
-  checkout: (assignmentId, payload) => http.post(`/parent/payments/${assignmentId}/checkout`, payload).then(data),
-  verifyPayment: (reference) => http.post('/parent/payments/verify', { reference }).then(data),
-};
-
 export const supportApi = {
   /** Côté école : /support-tickets — côté plateforme : /platform/tickets */
   thread: (base, id) => http.get(`/${base}/${id}/messages`).then(data),
@@ -179,6 +165,8 @@ export const platformApi = {
 };
 
 export const publicApi = {
+  /** GET /public/context — { central, school } selon l'adresse utilisée */
+  context: () => http.get('/public/context').then(data),
   plans: () => http.get('/public/plans').then(data),
   demoRequest: (payload) => http.post('/public/demo-requests', payload).then((r) => r.data),
   newsletter: (email) => http.post('/newsletter', { email }).then((r) => r.data),

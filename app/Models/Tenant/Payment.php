@@ -2,12 +2,14 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Concerns\RestrictedToUserCampuses;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Payment extends TenantModel
 {
-    use SoftDeletes;
+    use SoftDeletes, RestrictedToUserCampuses;
 
     protected function casts(): array
     {
@@ -27,5 +29,11 @@ class Payment extends TenantModel
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');
+    }
+
+    /** @param  array<int, int>  $campusIds */
+    public function constrainToCampuses(Builder $query, array $campusIds): void
+    {
+        $query->whereHas('student');
     }
 }

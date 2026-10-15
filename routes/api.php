@@ -38,6 +38,7 @@ Route::prefix('webhooks/fedapay')->middleware('throttle:120,1')->group(function 
 
 // ── Connexion (école déterminée par le domaine, ou par le code saisi) ──────
 Route::middleware('tenant:optional')->group(function () {
+    Route::get('public/context', [PublicController::class, 'context']);
     Route::post('parent/login', [ParentAuthController::class, 'login'])->middleware('throttle:parent-code');
 
     Route::prefix('auth')->middleware('throttle:login')->group(function () {

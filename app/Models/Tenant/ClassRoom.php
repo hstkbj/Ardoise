@@ -2,20 +2,19 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Concerns\RestrictedToUserCampuses;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ClassRoom extends TenantModel
 {
+    use RestrictedToUserCampuses;
+
     public function campus(): BelongsTo
     {
         return $this->belongsTo(Campus::class)->withTrashed();
-    }
-
-    public function academicYear(): BelongsTo
-    {
-        return $this->belongsTo(AcademicYear::class);
     }
 
     public function level(): BelongsTo
@@ -51,5 +50,11 @@ class ClassRoom extends TenantModel
     public function timetableEntries(): HasMany
     {
         return $this->hasMany(TimetableEntry::class);
+    }
+
+    /** @param  array<int, int>  $campusIds */
+    public function constrainToCampuses(Builder $query, array $campusIds): void
+    {
+        $query->whereIn('class_rooms.campus_id', $campusIds);
     }
 }

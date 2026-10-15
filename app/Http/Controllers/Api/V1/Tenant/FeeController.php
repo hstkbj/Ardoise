@@ -114,7 +114,7 @@ class FeeController extends Controller
             'interval_months' => $data['interval_months'] ?? null,
             'first_due_date' => $data['first_due_date'] ?? null,
             'academic_year_id' => $data['academic_year_id'] ?? AcademicYear::current()?->id,
-            'campus_id' => $data['school_id'] ?? null,
+            'campus_id' => tap($data['school_id'] ?? null, fn ($id) => app(\App\Services\CampusScope::class)->ensureAllows($id ? (int) $id : null)),
             'status' => $data['status'] ?? 'active',
             'level_ids' => $levelIds,
         ];

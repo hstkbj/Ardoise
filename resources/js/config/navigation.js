@@ -87,22 +87,6 @@ export const TEACHER_NAV = [
   },
 ];
 
-export const PARENT_NAV = [
-  { label: 'Accueil', to: '/parent/dashboard', icon: 'home', mobile: true },
-  { label: 'Enfants', to: '/parent/children', icon: 'users', mobile: true },
-  { label: 'Notes', to: '/parent/grades', icon: 'file', mobile: true, feature: 'grades' },
-  { label: 'Bulletins', to: '/parent/report-cards', icon: 'clipboard', feature: 'grades' },
-  { label: 'Absences', to: '/parent/attendance', icon: 'check-circle', feature: 'attendance' },
-  { label: 'Devoirs', to: '/parent/homework', icon: 'list', mobile: true, feature: 'homework' },
-  { label: 'Emploi du temps', to: '/parent/timetable', icon: 'clock', feature: 'timetable' },
-  { label: 'Paiements', to: '/parent/payments', icon: 'wallet', feature: 'finance' },
-  { label: 'Annonces', to: '/parent/announcements', icon: 'megaphone' },
-  { label: 'Documents', to: '/parent/documents', icon: 'folder', feature: 'documents' },
-  { label: 'Alertes', to: '/parent/notifications', icon: 'bell', mobile: true },
-  { label: 'Profil', to: '/profile', icon: 'user', mobile: true },
-  { label: 'Aide', to: '/guide?pour=parent', icon: 'help' },
-];
-
 export const SUPERADMIN_NAV = [
   {
     label: 'Plateforme',

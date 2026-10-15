@@ -16,8 +16,6 @@ class ClassRoomResource extends JsonResource
             'level_id' => $this->level_id,
             'school_id' => $this->campus_id,
             'school_name' => $this->campus?->name,
-            'academic_year_id' => $this->academic_year_id,
-            'academic_year' => $this->academicYear?->name,
             'head_teacher_id' => $this->head_teacher_id,
             'head_teacher' => $this->headTeacher?->full_name,
             'capacity' => $this->capacity,

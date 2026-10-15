@@ -58,6 +58,12 @@ trait InteractsWithTenantSchool
         return $this->tenant;
     }
 
+    /** URL absolue d'un chemin sur l'adresse de l'école (sous-domaine) : le personnel ne se connecte que là. */
+    protected function schoolUrl(string $path, ?Tenant $tenant = null): string
+    {
+        return 'http://'.($tenant ?? $this->tenant)->code.'.'.config('tenancy.base_domain').$path;
+    }
+
     protected function tearDownSchool(): void
     {
         Setting::flushCache();
@@ -123,7 +129,7 @@ trait InteractsWithTenantSchool
 
             $class = ClassRoom::create([
                 'name' => '5e B', 'level_id' => Level::where('name', '5e')->value('id'), 'campus_id' => $campus->id,
-                'academic_year_id' => $year->id, 'head_teacher_id' => $teacher->id, 'status' => 'active',
+                'head_teacher_id' => $teacher->id, 'status' => 'active',
             ]);
             $student = Student::create(['matricule' => 'T-0001', 'first_name' => 'Awa', 'last_name' => 'TRAORÉ', 'gender' => 'F', 'status' => 'active']);
             app(EnrollmentService::class)->enroll($student, $class, $year->starts_on->toDateString());

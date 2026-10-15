@@ -23,8 +23,8 @@ use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\TransientToken;
 
 /**
- * Connexion du personnel et des enseignants (e-mail ou téléphone + mot de passe).
- * Les parents se connectent uniquement par code : voir ParentAuthController.
+ * Connexion du personnel et des enseignants (e-mail ou téléphone + mot de passe), uniquement
+ * depuis l'adresse de l'établissement. Les parents utilisent l'application mobile : voir ParentAuthController.
  */
 class AuthController extends Controller
 {
@@ -36,10 +36,9 @@ class AuthController extends Controller
             'login' => ['required', 'string', 'max:150'],
             'password' => ['required', 'string', 'max:200'],
             'remember' => ['boolean'],
-            'school_code' => ['nullable', 'string', 'max:40'],
         ]);
 
-        $tenant = $this->resolveTenant($data['school_code'] ?? null);
+        $tenant = $this->requireTenantHost();
 
         if ($tenant->billingState() === Tenant::STATE_SUSPENDED) {
             abort(423, 'L’accès à cet établissement est suspendu.');
@@ -105,7 +104,7 @@ class AuthController extends Controller
 
         $tenant = Tenant::findOrFail($challenge['tenant_id']);
         abort_if($tenant->billingState() === Tenant::STATE_SUSPENDED, 423, 'L’accès à cet établissement est suspendu.');
-        abort_if(tenant() && tenant()->id !== $tenant->id, 403);
+        abort_unless(tenant() && tenant()->id === $tenant->id, 403, 'Utilisez l’adresse de votre établissement.');
 
         $this->tenancy->connect($tenant);
         $user = User::find($challenge['user_id']);
@@ -153,10 +152,9 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'login' => ['required', 'string', 'max:150'],
-            'school_code' => ['nullable', 'string', 'max:40'],
         ]);
 
-        $this->tenancy->connect($this->resolveTenant($data['school_code'] ?? null));
+        $this->tenancy->connect($this->requireTenantHost());
 
         if ($user = $this->findUser($data['login'])) {
             if (Phone::looksLikePhone($data['login']) && $user->phone) {
@@ -178,10 +176,9 @@ class AuthController extends Controller
             'login' => ['required', 'string', 'max:150'],
             'token' => ['required', 'string', 'max:200'],
             'password' => ['required', 'confirmed', PasswordRule::min(8)],
-            'school_code' => ['nullable', 'string', 'max:40'],
         ]);
 
-        $this->tenancy->connect($this->resolveTenant($data['school_code'] ?? null));
+        $this->tenancy->connect($this->requireTenantHost());
         $user = $this->findUser($data['login']);
 
         if ($user && Phone::looksLikePhone($data['login'])) {
@@ -235,18 +232,19 @@ class AuthController extends Controller
         ]);
     }
 
-    /** École : celle du domaine / de la session, sinon celle du code établissement saisi. */
-    protected function resolveTenant(?string $schoolCode): Tenant
+    /**
+     * Le personnel et les enseignants se connectent uniquement depuis l'adresse de leur
+     * établissement (sous-domaine ou domaine personnalisé). Le domaine central est
+     * réservé au superadmin.
+     */
+    protected function requireTenantHost(): Tenant
     {
-        if ($current = tenant()) {
-            return $current;
-        }
-
-        $code = strtolower(trim((string) $schoolCode));
-        $tenant = $code !== '' ? Tenant::where('code', $code)->first() : null;
+        $tenant = tenant();
 
         if (! $tenant) {
-            throw ValidationException::withMessages(['school_code' => 'Indiquez le code de votre établissement.']);
+            throw ValidationException::withMessages([
+                'login' => 'Connectez-vous depuis l’adresse de votre établissement (ex. https://votre-ecole.'.config('tenancy.base_domain').'). Cette adresse est réservée à la plateforme.',
+            ]);
         }
 
         return $tenant;

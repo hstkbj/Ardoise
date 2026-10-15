@@ -2,34 +2,37 @@
 
 namespace App\Services;
 
+use App\Models\Tenant\AcademicYear;
 use App\Models\Tenant\ActivityLog;
 use App\Models\Tenant\ClassRoom;
 use App\Models\Tenant\Enrollment;
 use App\Models\Tenant\Student;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
-/** Inscriptions : une inscription active par élève et par année, historique conservé. */
+/** Inscriptions : une inscription active par élève (dans l'année courante), historique conservé. */
 class EnrollmentService
 {
     public function __construct(protected FeeService $fees) {}
 
     public function enroll(Student $student, ClassRoom $class, ?string $date = null): Enrollment
     {
-        if ($class->academicYear?->isClosed()) {
-            throw ValidationException::withMessages(['class_id' => 'Cette année scolaire est clôturée.']);
-        }
+        $year = AcademicYear::assertOpen();
 
-        return DB::connection('tenant')->transaction(function () use ($student, $class, $date) {
+        return DB::connection('tenant')->transaction(function () use ($student, $class, $date, $year) {
             Enrollment::where('student_id', $student->id)
-                ->where('academic_year_id', $class->academic_year_id)
+                ->where('academic_year_id', $year->id)
                 ->where('status', 'active')
                 ->update(['status' => 'left', 'left_on' => now()->toDateString()]);
+
+            Enrollment::where('student_id', $student->id)
+                ->where('academic_year_id', '!=', $year->id)
+                ->where('status', 'active')
+                ->update(['status' => 'completed', 'left_on' => now()->toDateString()]);
 
             $enrollment = Enrollment::create([
                 'student_id' => $student->id,
                 'class_room_id' => $class->id,
-                'academic_year_id' => $class->academic_year_id,
+                'academic_year_id' => $year->id,
                 'enrolled_on' => $date ?: now()->toDateString(),
                 'status' => 'active',
             ]);

@@ -46,7 +46,7 @@ class FeeService
     {
         Fee::query()
             ->where('status', 'active')
-            ->where('academic_year_id', $class->academic_year_id)
+            ->where('academic_year_id', \App\Models\Tenant\AcademicYear::current()?->id)
             ->where(fn ($q) => $q->whereNull('campus_id')->orWhere('campus_id', $class->campus_id))
             ->where(fn ($q) => $q->whereDoesntHave('levels')->orWhereHas('levels', fn ($l) => $l->where('levels.id', $class->level_id)))
             ->each(fn (Fee $fee) => $this->createFor($fee, $student));

@@ -36,7 +36,8 @@ services:
   app:
     <<: *laravel
     ports:
-      - "${APP_PORT:-8080}:8080"   # placer un reverse proxy HTTPS devant (Caddy, Traefik, Nginx…)
+      # Reverse proxy HTTPS devant (Nginx, Caddy…) : APP_BIND=127.0.0.1 pour ne pas exposer le port
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-8080}:8080"
 
   queue:
     <<: *laravel

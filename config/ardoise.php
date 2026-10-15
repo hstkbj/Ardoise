@@ -5,6 +5,9 @@ return [
     // Préfixe ajouté aux jetons des applications mobiles : t_{code}.{jeton}
     'token_prefix' => 't_',
 
+    // Documentation Swagger de l'API parents : /api/docs (API_DOCS=false pour la masquer)
+    'api_docs' => env('API_DOCS', true),
+
     'parent_codes' => [
         // Alphabet sans caractères ambigus (0/O, 1/I/L)
         'alphabet' => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789',

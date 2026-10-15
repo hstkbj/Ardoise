@@ -27,7 +27,7 @@ class OptionsController extends Controller
         $teacherClasses = $this->teacherClassIds();
         $opt = fn ($rows, string $label = 'name') => $rows->map(fn ($r) => ['value' => $r->id, 'label' => $r->{$label}])->values();
 
-        $classes = ClassRoom::with('campus')->where('academic_year_id', $year?->id)
+        $classes = ClassRoom::with('campus')->where('status', 'active')
             ->when($teacherClasses !== null, fn ($q) => $q->whereIn('id', $teacherClasses))
             ->orderBy('level_id')->orderBy('name')->get();
 

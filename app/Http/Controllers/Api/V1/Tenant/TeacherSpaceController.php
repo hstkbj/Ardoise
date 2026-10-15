@@ -69,7 +69,7 @@ class TeacherSpaceController extends Controller
         $teacher = $request->user()->teacher;
         abort_unless($teacher, 403);
 
-        return ClassRoomResource::collection(ClassRoom::with(['campus', 'level', 'headTeacher', 'academicYear'])
+        return ClassRoomResource::collection(ClassRoom::with(['campus', 'level', 'headTeacher'])
             ->withCount(['enrollments as students_count' => fn ($q) => $q->where('status', 'active')])
             ->whereIn('id', $teacher->classRoomIds())
             ->orderBy('level_id')->get());

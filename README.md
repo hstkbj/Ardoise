@@ -46,7 +46,7 @@ php artisan queue:work              # dans un 2e terminal : e-mails et notificat
 
 `composer run dev` lance le serveur, la file d'attente et Vite en une commande.
 
-Ouvrez **http://palmiers.localhost:8000** (les sous-domaines `*.localhost` fonctionnent sans configuration dans Chrome et Firefox). Sur cette adresse, connectez-vous en tant qu'établissement pour conserver la session sur le sous-domaine de l'école. Depuis **http://localhost:8000**, la page de connexion demande le *code établissement* (`palmiers`) aux membres du personnel ; cette session reste sur le domaine central. Les parents n'ont besoin que de leur code.
+Ouvrez **http://palmiers.localhost:8000** (les sous-domaines `*.localhost` fonctionnent sans configuration dans Chrome et Firefox). Le personnel et les enseignants se connectent uniquement sur cette adresse. **http://localhost:8000** (domaine central) est réservé au superadmin. Les parents n'ont pas d'espace web : ils utilisent l'application mobile avec leur code (voir `/api/docs`).
 
 > La clé `APP_KEY` sert aussi à calculer l'empreinte des codes parents : la changer invalide tous les codes (il faut alors les régénérer).
 
@@ -95,7 +95,7 @@ Laravel Sanctum, deux modes :
 | SPA (navigateur) | Cookies de session + CSRF (`/sanctum/csrf-cookie`), aucun jeton stocké côté navigateur |
 | Application mobile | Jeton Bearer `t_{code}.{id}|{secret}` (180 jours, révocable) |
 
-- Personnel et enseignants : `POST /api/v1/auth/login { login (e-mail ou téléphone), password, school_code? }`.
+- Personnel et enseignants : `POST /api/v1/auth/login { login (e-mail ou téléphone), password }`, depuis l'adresse de l'école (refusé sur le domaine central).
 - Mot de passe oublié : lien par e-mail, ou code à 6 chiffres par SMS si l'identifiant est un téléphone (`/auth/forgot-password`, `/auth/reset-password`).
 - Superadmin : garde `platform`, uniquement sur le domaine central (`/api/v1/platform/auth/*`).
 - **Mot de passe provisoire** : l'administrateur créé par la plateforme (ou dont les identifiants sont renvoyés) doit choisir son mot de passe à la première connexion. Tant qu'il ne l'a pas fait, l'API répond `403 { code: "password_change_required" }` (sauf `auth/me`, `auth/logout`, `profile/password`) et l'interface ouvre **/security**.
@@ -146,7 +146,9 @@ RBAC maison dans la base de chaque école (`roles`, `permissions`, `permission_r
 - Les parents ne voient que les notes validées et les bulletins publiés.
 - Frais : échéances générées par élève (montant réparti, le reste sur la dernière) ; un encaissement est affecté aux échéances les plus anciennes ; « en retard » est calculé.
 - Impayés et bulletins : réglage Finance `report_card_unpaid_rule` (`off`, `warn`, `block`) et `report_card_unpaid_days` (30 j par défaut, distinct de `late_after_days`). Un élève est en situation d'impayé s'il a une échéance non soldée plus ancienne que ce seuil. `warn` : avertissement à la publication ; `block` : le bulletin n'est pas publié et reste inaccessible au parent (403, statut « withheld »). Une dérogation par élève (`waive` / `unwaive`, motif facultatif, journalisée) lève le blocage.
-- Une seule année scolaire active ; une année clôturée n'accepte plus de notes ni d'absences.
+- Une seule année scolaire active ; une année clôturée n'accepte plus de notes ni d'absences. Les **classes ne dépendent pas de l'année** : elles sont créées une fois par établissement ; l'année est portée par les inscriptions (la clôture termine les inscriptions actives, puis chaque élève est réinscrit dans sa classe de l'année suivante).
+- Portée par établissement : l'administrateur voit tous les sites ; un membre du personnel rattaché à un ou plusieurs sites (Utilisateurs → Établissements accessibles) ne voit que les élèves, classes, paiements, présences, bulletins, frais et annonces de ces sites, y compris quand il filtre par année. Sans rattachement, tous les sites sont visibles.
+- Connexion : le domaine central n'accepte que le superadmin ; le personnel et les enseignants se connectent depuis l'adresse de leur école (`{code}.votredomaine`). Les parents n'ont pas d'espace web : ils utilisent l'application mobile (documentation Swagger : `/api/docs`).
 - Notifications : in-app (toujours), e-mail et SMS selon les paramètres de l'école ; SMS seulement pour les messages urgents (absence, bulletin).
 
 ## 8. API
@@ -263,13 +265,14 @@ php artisan test
 - `tests/Feature/ActivityLogTest.php`, `SubscriptionInvoiceAndAlertsTest.php`, `SmsGatewayTest.php`, `DatabaseBackupTest.php` : journal, factures et alertes plateforme, fournisseurs SMS, sauvegardes.
 - `tests/Feature/EnrollmentAndPaymentTest.php`, `ReportCardTest.php`, `AccessScopeTest.php`, `UnpaidRuleTest.php` : inscription, encaissement manuel, bulletins, portée des enseignants et des parents, règle des impayés et dérogation.
 - `tests/Feature/FedaPayWebhookTest.php` : webhook FedaPay (signature, idempotence, échec).
+- `tests/Feature/CentralDomainLoginTest.php`, `ClassesAcrossYearsTest.php`, `CampusScopeTest.php`, `ApiDocsTest.php` : connexion par adresse, classes réutilisées d'une année à l'autre, portée par établissement, Swagger parents.
 
 ## 12. Déploiement
 
 Guide complet : [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md). Docker : `docker compose up -d --build` (Dockerfile, `docker-compose.yml`, `docker/nginx`, `docker/supervisor`).
 
 - MySQL : `DB_CONNECTION=mysql`, `TENANT_DB_CONNECTION=mysql` ; l'utilisateur doit pouvoir `CREATE DATABASE`.
-- DNS générique `*.votredomaine` vers le serveur, `TENANCY_BASE_DOMAIN=votredomaine`, `TENANCY_CENTRAL_DOMAINS=votredomaine,www.votredomaine`, `SESSION_DOMAIN=.votredomaine`, `SANCTUM_STATEFUL_DOMAINS=votredomaine,*.votredomaine`.
+- DNS générique `*.votredomaine` vers le serveur, `TENANCY_BASE_DOMAIN=votredomaine`, `TENANCY_CENTRAL_DOMAINS=votredomaine,www.votredomaine`, `SESSION_DOMAIN=` (vide), `SANCTUM_STATEFUL_DOMAINS=votredomaine,*.votredomaine`.
 - `php artisan migrate --force && php artisan tenants:migrate`, `npm run build`, worker de files (`queue:work`), planificateur, `php artisan storage:link`.
 - PDF : `composer require barryvdh/laravel-dompdf` pour des bulletins, reçus et factures d'abonnement en PDF ; sans lui, une page HTML imprimable est renvoyée.
 - SMS : `SMS_DRIVER` = `orange` (Orange SMS API), `twilio`, `africastalking` ou `http` (passerelle générique configurable : URL, authentification, noms des champs, champs fixes, contrôle de la réponse — voir `.env.example`). `SMS_DEFAULT_COUNTRY_CODE` complète les numéros saisis sans indicatif. Vérifier avec `php artisan sms:test +229…`.

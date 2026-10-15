@@ -2,11 +2,15 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Concerns\RestrictedToUserCampuses;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Assessment extends TenantModel
 {
+    use RestrictedToUserCampuses;
+
     public const TYPES = ['devoir', 'interrogation', 'examen', 'composition', 'controle_continu', 'oral'];
 
     protected function casts(): array
@@ -37,5 +41,11 @@ class Assessment extends TenantModel
     public function isLocked(): bool
     {
         return $this->status === 'validated';
+    }
+
+    /** @param  array<int, int>  $campusIds */
+    public function constrainToCampuses(Builder $query, array $campusIds): void
+    {
+        $query->whereHas('classSubject', fn (Builder $c) => $c->whereHas('classRoom'));
     }
 }

@@ -34,9 +34,7 @@ class AttendanceService
     /** @return array{absent: int, late: int} */
     public function save(ClassRoom $class, string $date, string $slot, array $records, User $by): array
     {
-        if ($class->academicYear?->isClosed()) {
-            throw ValidationException::withMessages(['class_id' => 'Cette année scolaire est clôturée.']);
-        }
+        \App\Models\Tenant\AcademicYear::assertOpen();
 
         $allowed = $class->students()->pluck('students.id')->map(fn ($id) => (int) $id)->all();
         $newlyMissing = collect();

@@ -38,7 +38,7 @@ class DashboardController extends Controller
             ->when($classId, fn ($q) => $q->where('class_room_id', $classId));
 
         $students = (clone $enrollments)->count();
-        $classes = ClassRoom::where('academic_year_id', $year?->id)->when($campusId, fn ($q) => $q->where('campus_id', $campusId))->count();
+        $classes = ClassRoom::where('status', 'active')->when($campusId, fn ($q) => $q->where('campus_id', $campusId))->count();
         $parents = ParentProfile::count();
 
         // Finances de l'année
@@ -144,8 +144,8 @@ class DashboardController extends Controller
             $alerts[] = ['tone' => 'warning', 'label' => 'Paiements', 'text' => "{$pendingOnline} paiement(s) en ligne à confirmer", 'link' => ['label' => 'Voir les paiements', 'to' => '/admin/payments']];
         }
 
-        ClassRoom::where('academic_year_id', $year?->id)->whereNotNull('capacity')
-            ->withCount(['enrollments as students_count' => fn ($q) => $q->where('status', 'active')])->get()
+        ClassRoom::whereNotNull('capacity')
+            ->withCount(['enrollments as students_count' => fn ($q) => $q->where('status', 'active')->where('academic_year_id', $year?->id)])->get()
             ->filter(fn ($c) => $c->students_count >= $c->capacity)->take(3)
             ->each(function ($c) use (&$alerts) {
                 $alerts[] = ['tone' => 'neutral', 'label' => 'Info', 'text' => "La {$c->name} a atteint sa capacité maximale ({$c->students_count}/{$c->capacity})"];

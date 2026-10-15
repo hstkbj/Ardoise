@@ -67,7 +67,7 @@ class EnrollmentAndPaymentTest extends TestCase
 
             return ClassRoom::create([
                 'name' => '5e C', 'level_id' => Level::where('name', '5e')->value('id'), 'campus_id' => $class->campus_id,
-                'academic_year_id' => $class->academic_year_id, 'status' => 'active',
+                'status' => 'active',
             ])->id;
         });
 

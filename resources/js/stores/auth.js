@@ -3,13 +3,12 @@ import { computed, ref } from 'vue';
 import { csrf, onPaymentRequired, onSecurityRequired, onUnauthorized } from '@/services/http';
 import { authApi } from '@/services/api';
 import { useOptionsStore } from './options';
-import { resetParentChildren } from '@/composables/useParentChildren';
 
 /**
  * Session utilisateur (Laravel Sanctum, cookies).
- *  - personnel / enseignants : e-mail ou téléphone + mot de passe (+ code établissement hors sous-domaine)
- *  - parents : code d'accès uniquement
- *  - superadmin : console plateforme, domaine central
+ *  - personnel / enseignants : e-mail ou téléphone + mot de passe, depuis l'adresse de leur établissement
+ *  - superadmin : console plateforme, domaine central uniquement
+ *  - parents : application mobile (pas d'espace parent sur le web)
  */
 
 export const ROLE_HOME = {
@@ -19,7 +18,6 @@ export const ROLE_HOME = {
   accountant: '/admin/payments',
   secretary: '/admin/students',
   teacher: '/teacher/dashboard',
-  parent: '/parent/dashboard',
   superadmin: '/superadmin/dashboard',
 };
 
@@ -94,14 +92,14 @@ export const useAuthStore = defineStore('auth', () => {
    * Connexion par mot de passe. Si la double authentification est active, renvoie
    * { two_factor: true, challenge } : appeler ensuite completeTwoFactor().
    */
-  async function login({ login: identifier, password, schoolCode, remember, role: profile }) {
+  async function login({ login: identifier, password, remember, role: profile }) {
     loading.value = true;
     try {
       await csrf();
       const out =
         profile === 'superadmin'
           ? await authApi.platformLogin({ login: identifier, password, remember })
-          : await authApi.login({ login: identifier, password, remember, school_code: schoolCode || undefined });
+          : await authApi.login({ login: identifier, password, remember });
       if (out?.two_factor) return out;
       user.value = out;
       await afterLogin();
@@ -124,17 +122,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function loginWithCode(code) {
-    loading.value = true;
-    try {
-      await csrf();
-      user.value = await authApi.parentLogin(code);
-      return user.value;
-    } finally {
-      loading.value = false;
-    }
-  }
-
   async function logout() {
     try {
       await (isPlatform.value ? authApi.platformLogout() : authApi.logout());
@@ -143,7 +130,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
     user.value = null;
     useOptionsStore().reset();
-    resetParentChildren();
   }
 
   function setUser(data) {
@@ -182,5 +168,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, loading, isAuthenticated, role, roles, homePath, isPlatform, subscription, requiresPayment, security, securityAction, hasRole, hasFeature, can, init, refresh, login, completeTwoFactor, loginWithCode, logout, setUser, afterLogin };
+  return { user, loading, isAuthenticated, role, roles, homePath, isPlatform, subscription, requiresPayment, security, securityAction, hasRole, hasFeature, can, init, refresh, login, completeTwoFactor, logout, setUser, afterLogin };
 });

@@ -2,6 +2,8 @@
 
 namespace App\Models\Tenant;
 
+use App\Models\Concerns\RestrictedToUserCampuses;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -9,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Student extends TenantModel
 {
-    use SoftDeletes;
+    use SoftDeletes, RestrictedToUserCampuses;
 
     protected function casts(): array
     {
@@ -71,5 +73,11 @@ class Student extends TenantModel
     public function currentClass(): ?ClassRoom
     {
         return $this->currentEnrollment?->classRoom;
+    }
+
+    /** @param  array<int, int>  $campusIds */
+    public function constrainToCampuses(Builder $query, array $campusIds): void
+    {
+        $query->where(fn (Builder $q) => $q->whereHas('enrollments', fn (Builder $e) => $e->whereHas('classRoom'))->orWhereDoesntHave('enrollments'));
     }
 }

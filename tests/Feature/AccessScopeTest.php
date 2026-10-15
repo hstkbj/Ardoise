@@ -29,7 +29,7 @@ class AccessScopeTest extends TestCase
             $class = ClassRoom::findOrFail($data['class_id']);
             $other = ClassRoom::create([
                 'name' => '3e A', 'level_id' => Level::where('name', '5e')->value('id'), 'campus_id' => $class->campus_id,
-                'academic_year_id' => $class->academic_year_id, 'status' => 'active',
+                'status' => 'active',
             ]);
             $student = Student::create(['matricule' => 'T-0099', 'first_name' => 'Yao', 'last_name' => 'KOUASSI', 'status' => 'active']);
             app(EnrollmentService::class)->enroll($student, $other);
