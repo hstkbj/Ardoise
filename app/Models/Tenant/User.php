@@ -26,6 +26,8 @@ class User extends Authenticatable
 
     protected ?array $campusIdsCache = null;
 
+    protected bool $campusScopeResolved = false;
+
     protected function casts(): array
     {
         return [
@@ -118,14 +120,20 @@ class User extends Authenticatable
      */
     public function restrictedCampusIds(): ?array
     {
-        if (! $this->isStaff() || $this->isSchoolAdmin()) {
-            return null;
+        if ($this->campusScopeResolved) {
+            return $this->campusIdsCache;
         }
 
-        $ids = $this->campusIdsCache ??= \Illuminate\Support\Facades\DB::connection('tenant')
+        $this->campusScopeResolved = true;
+
+        if (! $this->isStaff() || $this->isSchoolAdmin()) {
+            return $this->campusIdsCache = null;
+        }
+
+        $ids = \Illuminate\Support\Facades\DB::connection('tenant')
             ->table('campus_user')->where('user_id', $this->id)->pluck('campus_id')->map(fn ($id) => (int) $id)->all();
 
-        return $ids === [] ? null : $ids;
+        return $this->campusIdsCache = ($ids === [] ? null : $ids);
     }
 
     public function permissionKeys(): array
