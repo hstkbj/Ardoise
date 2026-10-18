@@ -80,7 +80,8 @@ class AnnouncementController extends Controller
             ->when($announcement->campus_id && ! $announcement->class_room_id, fn ($q) => $q->whereHas('currentEnrollment.classRoom', fn ($c) => $c->where('campus_id', $announcement->campus_id)))
             ->pluck('id');
 
-        $channels = array_values(array_intersect(['in_app', 'email', 'sms'], $announcement->channels ?: ['in_app']));
+        $allowed = tenant()?->hasFeature('sms') ? ['in_app', 'email', 'sms'] : ['in_app', 'email'];
+        $channels = array_values(array_intersect($allowed, $announcement->channels ?: ['in_app']));
         $body = mb_substr(strip_tags($announcement->body), 0, 160);
         $parents = collect();
 

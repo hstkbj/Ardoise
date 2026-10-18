@@ -792,6 +792,7 @@ export const RESOURCES = {
     emptyText: 'Aucun plan.',
     titleField: 'name',
     columns: [],
+    rowActions: [],
     form: [
       {
         title: 'Plan',

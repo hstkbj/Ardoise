@@ -255,7 +255,7 @@ Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'ac
         Route::get('children/{student}', [ParentPortalController::class, 'child'])->whereNumber('student');
         Route::get('announcements', [ParentPortalController::class, 'announcements']);
         Route::get('documents', [ParentPortalController::class, 'documents'])->middleware('feature:documents');
-        Route::post('document-requests', [ParentPortalController::class, 'requestDocument']);
+        Route::post('document-requests', [ParentPortalController::class, 'requestDocument'])->middleware('feature:documents');
         Route::get('timetable', [ParentPortalController::class, 'timetable'])->middleware('feature:timetable');
         Route::post('attendance/{attendance}/justify', [ParentPortalController::class, 'justify'])->middleware('feature:attendance');
         Route::post('homework/{homework}/done', [ParentPortalController::class, 'homeworkDone'])->middleware('feature:homework');

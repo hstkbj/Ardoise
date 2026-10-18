@@ -53,10 +53,17 @@ class CampusController extends Controller
         return new CampusResource($this->withCounts(Campus::query())->find($campus->id));
     }
 
-    public function update(Request $request, Campus $campus): CampusResource
+    public function update(Request $request, Campus $campus, PlanLimits $limits): CampusResource
     {
         $this->authorize('schools.update');
-        $campus->update($this->validated($request, $campus));
+        $data = $this->validated($request, $campus);
+
+        // Réactiver un établissement compte dans la limite du plan
+        if ($campus->status !== 'active' && $data['status'] === 'active') {
+            $limits->ensureCanAdd('schools');
+        }
+
+        $campus->update($data);
         $this->storeLogo($request, $campus);
 
         return new CampusResource($this->withCounts(Campus::query())->find($campus->id));

@@ -67,13 +67,13 @@ async function loadTab(key) {
   }
 }
 watch(tab, loadTab);
-watch(termId, () => loadTab('report'));
+watch(termId, () => auth.hasFeature('grades') && loadTab('report'));
 
 const tabs = computed(() => [
   { key: 'overview', label: 'Aperçu' },
-  { key: 'report', label: 'Bulletin' },
-  { key: 'attendance', label: 'Absences', count: absences.value?.length },
-  ...(auth.can('payments.view') ? [{ key: 'payments', label: 'Paiements' }] : []),
+  ...(auth.hasFeature('grades') ? [{ key: 'report', label: 'Bulletin' }] : []),
+  ...(auth.hasFeature('attendance') ? [{ key: 'attendance', label: 'Absences', count: absences.value?.length }] : []),
+  ...(auth.can('payments.view') && auth.hasFeature('finance') ? [{ key: 'payments', label: 'Paiements' }] : []),
 ]);
 
 const absenceColumns = [

@@ -35,7 +35,7 @@ const greeting = new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
     <PageHeader :title="`${greeting}, ${auth.user?.name?.split(' ')[0] ?? ''}`" :subtitle="d?.term ? `Vue d’ensemble · ${d.term.name}` : 'Vue d’ensemble de l’établissement'">
       <template #actions>
         <RouterLink v-if="auth.can('students.create')" to="/admin/students/create" class="btn btn-secondary"><AppIcon name="plus" class="size-4" />Inscrire un élève</RouterLink>
-        <RouterLink v-if="auth.can('payments.create')" to="/admin/payments/create" class="btn btn-primary"><AppIcon name="wallet" class="size-4" />Encaisser</RouterLink>
+        <RouterLink v-if="auth.can('payments.create') && auth.hasFeature('finance')" to="/admin/payments/create" class="btn btn-primary"><AppIcon name="wallet" class="size-4" />Encaisser</RouterLink>
       </template>
     </PageHeader>
 
@@ -45,7 +45,7 @@ const greeting = new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
         <StatsCard label="Élèves inscrits" :loading="loading" :value="formatNumber(d?.kpis.students)" :hint="d ? `+${d.kpis.new_students} ce mois` : ''" hint-tone="positive" />
         <StatsCard label="Enseignants" :loading="loading" :value="formatNumber(d?.kpis.teachers)" :hint="d ? `dont ${d.kpis.part_time_teachers} vacataire(s)` : ''" />
         <StatsCard label="Classes" :loading="loading" :value="formatNumber(d?.kpis.classes)" :hint="d ? `${d.kpis.schools} établissement(s)` : ''" />
-        <StatsCard label="Parents" :loading="loading" :value="formatNumber(d?.kpis.parents)" :hint="d ? `${d.kpis.parents_activated_rate} % connectés` : ''" />
+        <StatsCard v-if="auth.hasFeature('parent_portal')" label="Parents" :loading="loading" :value="formatNumber(d?.kpis.parents)" :hint="d ? `${d.kpis.parents_activated_rate} % connectés` : ''" />
       </div>
 
       <div v-if="d?.alerts?.length" class="card divide-y divide-line-soft">
@@ -57,11 +57,11 @@ const greeting = new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
       </div>
 
       <div class="grid gap-4 lg:grid-cols-3">
-        <section class="card p-5 lg:col-span-2">
+        <section v-if="auth.hasFeature('grades')" class="card p-5 lg:col-span-2">
           <div class="flex items-center justify-between"><h2 class="card-title">Moyennes par niveau</h2><span class="text-xs text-subtle">sur 20 · évaluations validées</span></div>
           <div class="mt-5"><BarChart v-if="!loading" :items="d?.averages_by_level ?? []" :max="20" :threshold="10" threshold-label="Moyenne" :format="(v) => Number(v).toLocaleString('fr-FR')" label="Moyennes par niveau" /><div v-else class="skeleton h-44" /></div>
         </section>
-        <section class="card p-5">
+        <section v-if="auth.hasFeature('finance')" class="card p-5">
           <h2 class="card-title">Recouvrement</h2>
           <template v-if="d">
             <p class="mt-4 text-3xl font-semibold tabular">{{ collectedRate }} %</p>
@@ -78,7 +78,7 @@ const greeting = new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
       </div>
 
       <div class="grid gap-4 lg:grid-cols-3">
-        <section class="card p-5">
+        <section v-if="auth.hasFeature('attendance')" class="card p-5">
           <h2 class="card-title">Absences du jour</h2>
           <template v-if="d">
             <p class="mt-4 text-3xl font-semibold tabular">{{ d.attendance_today.absent }}</p>
@@ -95,7 +95,7 @@ const greeting = new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
             <div class="flex-1 rounded-lg bg-sky p-3"><p class="text-xs text-muted">Garçons</p><p class="font-semibold tabular">{{ d.gender.male }} %</p></div>
           </div>
         </section>
-        <section class="card p-5">
+        <section v-if="auth.hasFeature('grades')" class="card p-5">
           <h2 class="card-title">Prochaines évaluations</h2>
           <ul v-if="d?.events?.length" class="mt-4 space-y-3">
             <li v-for="e in d.events" :key="e.date + e.title" class="flex gap-3">
@@ -108,7 +108,7 @@ const greeting = new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
         </section>
       </div>
 
-      <section v-if="auth.can('payments.view')" class="card">
+      <section v-if="auth.can('payments.view') && auth.hasFeature('finance')" class="card">
         <div class="flex items-center justify-between px-5 pt-5 pb-3"><h2 class="card-title">Derniers encaissements</h2><RouterLink to="/admin/payments" class="text-sm link">Tout voir</RouterLink></div>
         <PaymentTable :payments="payments.data.value" :loading="payments.loading.value" />
       </section>

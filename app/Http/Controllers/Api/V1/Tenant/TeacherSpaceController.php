@@ -29,20 +29,22 @@ class TeacherSpaceController extends Controller
         $todayEntries = TimetableEntry::with(['classRoom', 'subject'])
             ->where('teacher_id', $teacher->id)->where('day_of_week', $day)->orderBy('starts_at')->get();
 
-        $toGrade = Assessment::with('classSubject.classRoom')
+        $has = fn (string $feature): bool => (bool) tenant()?->hasFeature($feature);
+
+        $toGrade = ! $has('grades') ? collect() : Assessment::with('classSubject.classRoom')
             ->where('teacher_id', $teacher->id)->where('status', 'draft')
             ->withCount(['grades as graded' => fn ($q) => $q->where(fn ($g) => $g->whereNotNull('score')->orWhere('is_absent', true))])
             ->orderBy('date')->limit(6)->get();
 
         return response()->json(['data' => [
-            'today' => $todayEntries->map(fn ($e) => [
+            'today' => ! $has('timetable') ? [] : $todayEntries->map(fn ($e) => [
                 'time' => $e->starts_at.' – '.$e->ends_at,
                 'start' => $e->starts_at,
                 'class_id' => $e->class_room_id,
                 'class_name' => $e->classRoom?->name,
                 'subject' => $e->subject?->name,
                 'room' => $e->room,
-                'attendance_done' => Attendance::where('class_room_id', $e->class_room_id)->whereDate('date', $today)->where('slot', $e->starts_at)->exists(),
+                'attendance_done' => $has('attendance') && Attendance::where('class_room_id', $e->class_room_id)->whereDate('date', $today)->where('slot', $e->starts_at)->exists(),
             ]),
             'to_grade' => $toGrade->map(fn ($a) => [
                 'id' => $a->id,
@@ -52,14 +54,14 @@ class TeacherSpaceController extends Controller
                 'total' => Enrollment::where('class_room_id', $a->classSubject?->class_room_id)->where('status', 'active')->count(),
                 'due' => $a->date->copy()->addDays(7)->toDateString(),
             ]),
-            'homework' => Homework::with('classRoom')->where('teacher_id', $teacher->id)->whereDate('due_date', '>=', now()->subDays(3)->toDateString())
+            'homework' => ! $has('homework') ? [] : Homework::with('classRoom')->where('teacher_id', $teacher->id)->whereDate('due_date', '>=', now()->subDays(3)->toDateString())
                 ->orderBy('due_date')->limit(5)->get()
                 ->map(fn ($h) => ['id' => $h->id, 'title' => $h->title, 'class_name' => $h->classRoom?->name, 'due' => $h->due_date->toDateString(), 'status' => $h->status]),
             'stats' => [
                 'classes' => count($classIds),
                 'students' => Enrollment::whereIn('class_room_id', $classIds)->where('status', 'active')->count(),
-                'assessments' => Assessment::where('teacher_id', $teacher->id)->where('term_id', Term::current()?->id)->count(),
-                'absences_week' => Attendance::whereIn('class_room_id', $classIds)->where('status', 'absent')->whereDate('date', '>=', now()->startOfWeek()->toDateString())->count(),
+                'assessments' => $has('grades') ? Assessment::where('teacher_id', $teacher->id)->where('term_id', Term::current()?->id)->count() : 0,
+                'absences_week' => ! $has('attendance') ? 0 : Attendance::whereIn('class_room_id', $classIds)->where('status', 'absent')->whereDate('date', '>=', now()->startOfWeek()->toDateString())->count(),
             ],
         ]]);
     }

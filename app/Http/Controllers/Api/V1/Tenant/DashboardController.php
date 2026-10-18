@@ -31,6 +31,8 @@ class DashboardController extends Controller
         $campusId = $request->integer('school_id') ?: null;
         $classId = $request->integer('class_id') ?: null;
         $today = now()->toDateString();
+        // Seuls les modules inclus dans le plan de l'école sont calculés et renvoyés
+        $has = fn (string $feature): bool => (bool) tenant()?->hasFeature($feature);
 
         $enrollments = Enrollment::where('enrollments.status', 'active')
             ->where('enrollments.academic_year_id', $year?->id)
@@ -43,22 +45,27 @@ class DashboardController extends Controller
 
         // Finances de l'année
         $fees = FeeAssignment::whereHas('fee', fn ($q) => $q->where('academic_year_id', $year?->id)->when($campusId, fn ($f) => $f->where(fn ($x) => $x->whereNull('campus_id')->orWhere('campus_id', $campusId))));
-        $expected = (int) (clone $fees)->sum('amount');
-        $collected = (int) (clone $fees)->sum('paid_amount');
         $lateDays = (int) Setting::get('finance', 'late_after_days', 30);
-        $lateFamilies = (clone $fees)->where('status', '!=', 'paid')->whereDate('due_date', '<', now()->subDays($lateDays)->toDateString())->distinct()->count('student_id');
+        $expected = $collected = $lateFamilies = 0;
+
+        if ($has('finance')) {
+            $expected = (int) (clone $fees)->sum('amount');
+            $collected = (int) (clone $fees)->sum('paid_amount');
+            $lateFamilies = (clone $fees)->where('status', '!=', 'paid')->whereDate('due_date', '<', now()->subDays($lateDays)->toDateString())->distinct()->count('student_id');
+        }
 
         // Absences du jour
         $todayAttendance = Attendance::whereDate('date', $today)->when($classId, fn ($q) => $q->where('class_room_id', $classId))
             ->when($campusId, fn ($q) => $q->whereHas('classRoom', fn ($c) => $c->where('campus_id', $campusId)));
-        $absentToday = (clone $todayAttendance)->where('status', 'absent')->distinct()->count('student_id');
-        $byClass = (clone $todayAttendance)->where('status', 'absent')
+        $hasAttendance = $has('attendance');
+        $absentToday = $hasAttendance ? (clone $todayAttendance)->where('status', 'absent')->distinct()->count('student_id') : 0;
+        $byClass = ! $hasAttendance ? collect() : (clone $todayAttendance)->where('status', 'absent')
             ->select('class_room_id', DB::raw('count(distinct student_id) as total'))->groupBy('class_room_id')
             ->orderByDesc('total')->limit(5)->with('classRoom.campus')->get()
             ->map(fn ($row) => ['label' => $row->classRoom?->name.' · '.$row->classRoom?->campus?->name, 'value' => (int) $row->total]);
 
         // Moyennes par niveau (évaluations validées de la période)
-        $averages = $term ? DB::connection('tenant')->table('grades')
+        $averages = $term && $has('grades') ? DB::connection('tenant')->table('grades')
             ->join('assessments', 'assessments.id', '=', 'grades.assessment_id')
             ->join('class_subject', 'class_subject.id', '=', 'assessments.class_subject_id')
             ->join('class_rooms', 'class_rooms.id', '=', 'class_subject.class_room_id')
@@ -90,8 +97,8 @@ class DashboardController extends Controller
                 'part_time_teachers' => Teacher::where('status', '!=', 'inactive')->where('contract', 'vacataire')->count(),
                 'classes' => $classes,
                 'schools' => Campus::where('status', 'active')->count(),
-                'parents' => $parents,
-                'parents_activated_rate' => $parents ? (int) round(ParentProfile::where('status', 'active')->count() * 100 / $parents) : 0,
+                'parents' => $has('parent_portal') ? $parents : 0,
+                'parents_activated_rate' => $has('parent_portal') && $parents ? (int) round(ParentProfile::where('status', 'active')->count() * 100 / $parents) : 0,
             ],
             'finance' => [
                 'collected' => $collected,
@@ -102,8 +109,8 @@ class DashboardController extends Controller
             'attendance_today' => [
                 'absent' => $absentToday,
                 'rate' => $students ? round($absentToday * 100 / $students, 1) : 0,
-                'late' => (clone $todayAttendance)->where('status', 'late')->count(),
-                'justified' => (clone $todayAttendance)->where('status', 'absent')->where('is_justified', true)->count(),
+                'late' => $hasAttendance ? (clone $todayAttendance)->where('status', 'late')->count() : 0,
+                'justified' => $hasAttendance ? (clone $todayAttendance)->where('status', 'absent')->where('is_justified', true)->count() : 0,
                 'by_class' => $byClass,
             ],
             'averages_by_level' => $averages,
@@ -113,17 +120,18 @@ class DashboardController extends Controller
                 'male' => (int) round(($genders['M'] ?? 0) * 100 / $genderTotal),
                 'scholarship' => null,
             ],
-            'alerts' => $this->alerts($year, $lateFamilies, $lateDays),
-            'events' => Assessment::with('classSubject.classRoom', 'classSubject.subject')
+            'alerts' => $this->alerts($year, $lateFamilies, $lateDays, $has('finance'), $has('grades')),
+            'events' => ! $has('grades') ? [] : Assessment::with('classSubject.classRoom', 'classSubject.subject')
                 ->whereIn('type', ['composition', 'examen'])
                 ->whereDate('date', '>=', $today)
                 ->orderBy('date')->limit(4)->get()
                 ->map(fn (Assessment $a) => ['date' => $a->date->toDateString(), 'title' => $a->title.' · '.$a->classSubject?->subject?->name, 'place' => $a->classSubject?->classRoom?->name]),
+            'modules' => ['finance' => $has('finance'), 'attendance' => $hasAttendance, 'grades' => $has('grades'), 'parent_portal' => $has('parent_portal')],
             'term' => $term ? ['id' => $term->id, 'name' => $term->name] : null,
         ]]);
     }
 
-    protected function alerts(?AcademicYear $year, int $lateFamilies, int $lateDays): array
+    protected function alerts(?AcademicYear $year, int $lateFamilies, int $lateDays, bool $finance = true, bool $grades = true): array
     {
         $alerts = [];
 
@@ -131,14 +139,14 @@ class DashboardController extends Controller
             $alerts[] = ['tone' => 'danger', 'label' => 'Urgent', 'text' => "{$lateFamilies} famille(s) ont plus de {$lateDays} jours de retard de paiement", 'link' => ['label' => 'Voir les impayés', 'to' => '/admin/payments?status=overdue']];
         }
 
-        $toValidate = Assessment::with('classSubject.classRoom')->where('status', 'draft')->whereDate('date', '<', now()->subDays(7)->toDateString())->get();
+        $toValidate = $grades ? Assessment::with('classSubject.classRoom')->where('status', 'draft')->whereDate('date', '<', now()->subDays(7)->toDateString())->get() : collect();
 
         if ($toValidate->isNotEmpty()) {
             $classes = $toValidate->pluck('classSubject.classRoom.name')->filter()->unique()->take(4)->implode(', ');
             $alerts[] = ['tone' => 'warning', 'label' => 'À valider', 'text' => $toValidate->count()." évaluation(s) en attente de validation — {$classes}", 'link' => ['label' => 'Ouvrir les évaluations', 'to' => '/admin/assessments']];
         }
 
-        $pendingOnline = Payment::where('status', 'pending')->count();
+        $pendingOnline = $finance ? Payment::where('status', 'pending')->count() : 0;
 
         if ($pendingOnline > 0) {
             $alerts[] = ['tone' => 'warning', 'label' => 'Paiements', 'text' => "{$pendingOnline} paiement(s) en ligne à confirmer", 'link' => ['label' => 'Voir les paiements', 'to' => '/admin/payments']];

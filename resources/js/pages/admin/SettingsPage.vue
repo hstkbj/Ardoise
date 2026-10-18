@@ -112,7 +112,11 @@ const PLATFORM = {
   ] },
 };
 
-const sections = props.platform ? PLATFORM : SCHOOL;
+// Paramètres d'un module absent du plan : section masquée (le serveur la refuse aussi)
+const SECTION_FEATURES = { grading: 'grades', reports: 'grades', finance: 'finance', online_payments: 'online_payments' };
+const sections = props.platform
+  ? PLATFORM
+  : Object.fromEntries(Object.entries(SCHOOL).filter(([key]) => auth.hasFeature(SECTION_FEATURES[key])));
 const tab = ref(Object.keys(sections)[0]);
 const tabs = Object.entries(sections).map(([key, s]) => ({ key, label: s.label }));
 const values = reactive({});

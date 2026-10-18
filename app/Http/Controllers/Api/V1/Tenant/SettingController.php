@@ -26,10 +26,26 @@ class SettingController extends Controller
         'finance' => ['currency' => 'nullable|in:XOF,XAF,GNF', 'receipt_prefix' => 'nullable|string|max:10', 'methods' => 'nullable|array', 'late_after_days' => 'nullable|integer|min:0|max:365', 'report_card_unpaid_rule' => 'nullable|in:off,warn,block', 'report_card_unpaid_days' => 'nullable|integer|min:0|max:365'],
     ];
 
+    /** Sections de paramètres liées à un module du plan. */
+    protected const SECTION_FEATURES = [
+        'grading' => 'grades',
+        'reports' => 'grades',
+        'finance' => 'finance',
+        'online_payments' => 'online_payments',
+    ];
+
+    protected function ensureModule(string $section): void
+    {
+        $feature = self::SECTION_FEATURES[$section] ?? null;
+
+        abort_if($feature && ! tenant()?->hasFeature($feature), 403, 'Ce module n’est pas inclus dans le plan de l’établissement.');
+    }
+
     public function show(string $section): JsonResponse
     {
         $this->authorize('settings.view');
         abort_unless(in_array($section, SettingDefaults::SECTIONS, true), 404);
+        $this->ensureModule($section);
 
         return response()->json(['data' => $this->present($section, Setting::section($section))]);
     }
@@ -38,6 +54,7 @@ class SettingController extends Controller
     {
         $this->authorize('settings.update');
         abort_unless(isset(self::RULES[$section]), 404);
+        $this->ensureModule($section);
 
         $values = $request->validate(self::RULES[$section]);
 
@@ -47,6 +64,14 @@ class SettingController extends Controller
 
         if ($section === 'notification_rules') {
             $values['rules'] = array_intersect_key($values['rules'], NotificationEvents::EVENTS);
+
+            if (! tenant()?->hasFeature('sms')) {
+                $values['rules'] = array_map(function ($rule) {
+                    $rule['channels'] = array_values(array_diff($rule['channels'] ?? [], ['sms']));
+
+                    return $rule;
+                }, $values['rules']);
+            }
         }
 
         foreach (['logo', 'signature'] as $file) {

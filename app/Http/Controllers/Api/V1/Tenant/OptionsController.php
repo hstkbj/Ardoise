@@ -35,7 +35,7 @@ class OptionsController extends Controller
             'schools' => $opt(Campus::where('status', 'active')->orderBy('name')->get()),
             'academicYears' => $opt(AcademicYear::orderByDesc('starts_on')->get()),
             'currentAcademicYear' => $year?->id,
-            'terms' => $opt($year ? $year->terms()->get() : collect()),
+            'terms' => $opt($year && tenant()?->hasFeature('grades') ? $year->terms()->get() : collect()),
             'currentTerm' => Term::current()?->id,
             'levels' => Level::orderBy('position')->get()->map(fn ($l) => ['value' => $l->name, 'label' => $l->name, 'id' => $l->id]),
             'classes' => $classes->map(fn ($c) => ['value' => $c->id, 'label' => $c->name, 'school_id' => $c->campus_id, 'school' => $c->campus?->name]),
@@ -45,7 +45,7 @@ class OptionsController extends Controller
                 ->when($teacherClasses !== null, fn ($q) => $q->whereHas('currentEnrollment', fn ($e) => $e->whereIn('class_room_id', $teacherClasses)))
                 ->orderBy('last_name')->limit(3000)->get()
                 ->map(fn ($s) => ['value' => $s->id, 'label' => $s->full_name.($s->currentEnrollment?->classRoom ? ' · '.$s->currentEnrollment->classRoom->name : '')]),
-            'fees' => $opt(Fee::where('academic_year_id', $year?->id)->where('status', 'active')->orderBy('name')->get()),
+            'fees' => ! tenant()?->hasFeature('finance') ? [] : $opt(Fee::where('academic_year_id', $year?->id)->where('status', 'active')->orderBy('name')->get()),
             'roles' => Role::orderBy('id')->get()->map(fn ($r) => ['value' => $r->key, 'label' => $r->name]),
         ]]);
     }

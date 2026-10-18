@@ -40,6 +40,15 @@ class EnsureTenantIsActive
             ], 402);
         }
 
+        // Un plan sans « portail parents » ferme tout l'accès des parents (même avec un jeton déjà émis)
+        if ($request->user()?->hasRole('parent') && ! $tenant->hasFeature('parent_portal') && ! $request->routeIs('auth.*', 'profile.*')) {
+            return response()->json([
+                'message' => 'Le portail parents n’est pas inclus dans le plan de l’établissement.',
+                'code' => 'feature_unavailable',
+                'feature' => 'parent_portal',
+            ], 403);
+        }
+
         return $next($request);
     }
 
