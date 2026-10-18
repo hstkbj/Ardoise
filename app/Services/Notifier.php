@@ -35,8 +35,10 @@ class Notifier
      * @param  iterable<Student>|Student|null  $students  élèves concernés (parents, professeurs)
      * @param  array{parent?: string, teacher?: string, staff?: string}  $links  lien par espace
      * @param  array<int>  $classIds  classes concernées si aucun élève n'est fourni
+     * @param  list<string>  $only  limite aux destinataires cités (ex. ['parents'])
+     * @param  list<string>  $except  exclut ces destinataires
      */
-    public function event(string $event, string $title, string $body, iterable|Student|null $students = null, array $links = [], array $classIds = []): void
+    public function event(string $event, string $title, string $body, iterable|Student|null $students = null, array $links = [], array $classIds = [], array $only = [], array $except = []): void
     {
         $rule = NotificationEvents::rule($event);
 
@@ -47,9 +49,12 @@ class Notifier
         $studentIds = collect($students instanceof Student ? [$students] : ($students ?? []))->pluck('id')->filter()->unique()->values();
         $classIds = $classIds ?: ($studentIds->isNotEmpty() ? $this->classIdsOf($studentIds) : []);
         $type = NotificationEvents::EVENTS[$event]['type'] ?? 'system';
+        // Un seul élève : l'application parents ouvre directement son écran
+        $data = $studentIds->count() === 1 ? ['student_id' => (int) $studentIds->first()] : [];
         $seen = [];
+        $recipients = array_diff($only ? array_intersect($rule['recipients'], $only) : $rule['recipients'], $except);
 
-        foreach ($rule['recipients'] as $recipient) {
+        foreach ($recipients as $recipient) {
             $audience = self::AUDIENCE[$recipient] ?? 'staff';
             $users = $this->resolve($recipient, $studentIds, $classIds)
                 ->reject(fn (User $user) => isset($seen[$user->id]))
@@ -57,7 +62,7 @@ class Notifier
                     $seen[$user->id] = true;
                 });
 
-            $this->send($users, new SchoolNotification($title, $body, $type, $links[$audience] ?? $links['staff'] ?? null, $rule['channels']));
+            $this->send($users, new SchoolNotification($title, $body, $type, $links[$audience] ?? $links['staff'] ?? null, $rule['channels'], $data));
         }
     }
 

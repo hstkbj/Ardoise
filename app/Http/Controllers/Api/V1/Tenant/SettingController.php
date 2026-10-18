@@ -28,7 +28,7 @@ class SettingController extends Controller
             'remove_files' => 'nullable|array', 'remove_files.*' => 'in:second_logo,signature,stamp',
         ],
         'notifications' => ['absence_notify' => 'nullable|in:immediate,daily,never', 'sms_sender' => 'nullable|string|max:11'],
-        'notification_rules' => ['rules' => 'required|array', 'rules.*.recipients' => 'present|array', 'rules.*.recipients.*' => 'string', 'rules.*.channels' => 'present|array', 'rules.*.channels.*' => 'in:in_app,email,sms'],
+        'notification_rules' => ['rules' => 'required|array', 'rules.*.recipients' => 'present|array', 'rules.*.recipients.*' => 'string', 'rules.*.channels' => 'present|array', 'rules.*.channels.*' => 'in:in_app,email,sms,push'],
         'online_payments' => ['enabled' => 'required|in:yes,no', 'environment' => 'required|in:sandbox,live', 'public_key' => 'nullable|string|max:200', 'secret_key' => 'nullable|string|max:200', 'webhook_secret' => 'nullable|string|max:200'],
         'finance' => ['currency' => 'nullable|in:XOF,XAF,GNF', 'receipt_prefix' => 'nullable|string|max:10', 'methods' => 'nullable|array', 'late_after_days' => 'nullable|integer|min:0|max:365', 'report_card_unpaid_rule' => 'nullable|in:off,warn,block', 'report_card_unpaid_days' => 'nullable|integer|min:0|max:365'],
     ];
@@ -70,6 +70,9 @@ class SettingController extends Controller
         }
 
         if ($section === 'notification_rules') {
+            // Les cases « Push » de l'école font désormais foi (voir NotificationEvents::rules)
+            $values['push_configured'] = true;
+
             $values['rules'] = array_intersect_key($values['rules'], NotificationEvents::EVENTS);
 
             if (! tenant()?->hasFeature('sms')) {

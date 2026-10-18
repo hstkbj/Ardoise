@@ -8,6 +8,7 @@ use App\Models\Tenant\Announcement;
 use App\Models\Tenant\ParentProfile;
 use App\Models\Tenant\Student;
 use App\Models\Tenant\User;
+use App\Services\CampusScope;
 use App\Services\Notifier;
 use App\Support\ListQuery;
 use Illuminate\Http\JsonResponse;
@@ -87,7 +88,8 @@ class AnnouncementController extends Controller
 
         if (array_intersect($audiences, ['parents', 'class', 'school', 'students'])) {
             $parents = User::where('status', 'active')->whereIn('id', ParentProfile::whereHas('students', fn ($q) => $q->whereIn('students.id', $students))->pluck('user_id'))->get();
-            $this->notifier->users($parents, $announcement->title, $body, 'announcement', '/parent/announcements', $channels);
+            // Les parents reçoivent aussi l'annonce en notification push sur l'application
+            $this->notifier->users($parents, $announcement->title, $body, 'announcement', '/parent/announcements', [...$channels, 'push']);
         }
 
         if (array_intersect($audiences, ['teachers', 'school'])) {
@@ -115,7 +117,7 @@ class AnnouncementController extends Controller
             'body' => $data['body'],
             'audiences' => $data['audiences'] ?? ['parents'],
             'channels' => array_values(array_unique(array_merge(['in_app'], $data['channels'] ?? []))),
-            'campus_id' => tap($data['school_id'] ?? null, fn ($id) => app(\App\Services\CampusScope::class)->ensureAllows($id ? (int) $id : null)),
+            'campus_id' => tap($data['school_id'] ?? null, fn ($id) => app(CampusScope::class)->ensureAllows($id ? (int) $id : null)),
             'class_room_id' => $data['class_id'] ?? null,
             'status' => $data['status'] ?? 'published',
         ];

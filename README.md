@@ -244,7 +244,9 @@ Planification dans `routes/console.php` : lancer `php artisan schedule:work` (ou
 
 Toutes les notifications (`SchoolNotification`) et les e-mails de la plateforme partent dans la file `database` (table `jobs` de la base centrale). Chaque tâche emporte l'identifiant de l'école (`App\Tenancy\QueueTenancy`) : le worker reconnecte la bonne base avant d'envoyer. Un worker doit tourner en production : `php artisan queue:work --tries=3` (Supervisor, systemd…).
 
-**Qui reçoit quoi** se règle par école dans **Paramètres → Destinataires** : pour chaque événement (absence, justificatif, notes validées, bulletin, devoir, paiement encaissé, paiement en ligne, demande de document), on coche les destinataires (parents de l'élève, professeur principal, enseignants de la classe, administrateurs, direction, comptabilité, secrétariat…) et les canaux (application, e-mail, SMS — SMS seulement si le plan l'inclut). Les annonces gardent leurs destinataires choisis à la publication. Catalogue et valeurs par défaut : `App\Support\NotificationEvents`.
+**Qui reçoit quoi** se règle par école dans **Paramètres → Destinataires** : pour chaque événement (absence, justificatif, notes validées, bulletin, devoir, paiement encaissé, paiement en ligne, demande de document), on coche les destinataires (parents de l'élève, professeur principal, enseignants de la classe, administrateurs, direction, comptabilité, secrétariat…) et les canaux (application, push, e-mail, SMS — SMS seulement si le plan l'inclut). Les annonces gardent leurs destinataires choisis à la publication. Catalogue et valeurs par défaut : `App\Support\NotificationEvents`.
+
+**Notifications push (application parents)** : l'application mobile enregistre le téléphone (`POST /parent/push-token`, table `push_tokens` de l'école) et le serveur envoie par le service gratuit d'Expo (`App\Services\Push\ExpoPush`, canal `push`), qui relaie vers Firebase et Apple : le parent est prévenu même application fermée. Activé par défaut pour les notes validées (« Awa · Mathématiques — Interrogation 2 : 14/20 », un message par enfant), les absences et retards, les bulletins, les paiements encaissés, les devoirs et les annonces. Un téléphone désinstallé est oublié automatiquement ; régénérer ou désactiver le code d'un parent coupe aussi ses notifications. Aucune clé côté serveur (`EXPO_ACCESS_TOKEN` seulement si la sécurité renforcée est activée sur expo.dev) ; le worker de file d'attente doit tourner. Configuration Firebase / EAS : `README` de l'application mobile.
 
 ## 11. Tests
 
@@ -259,6 +261,7 @@ php artisan test
 - `tests/Feature/TenantCredentialsMailTest.php` : e-mail d'identifiants à la création, renvoi avec nouveau mot de passe.
 - `tests/Feature/FedaPaySubscriptionTest.php`, `FedaPaySchoolFeesTest.php` : paiement FedaPay (API simulée), webhooks signés, prolongation, clés d'école chiffrées.
 - `tests/Feature/NotificationRulesTest.php` : destinataires réglables, SMS selon le plan, livraison par la file dans la bonne base d'école.
+- `tests/Feature/PushNotificationsTest.php` : enregistrement du téléphone, note de l'enfant envoyée à Expo à la validation, téléphone désinstallé oublié, règles existantes complétées par le push.
 - `tests/Feature/SubscriptionRemindersTest.php` : rappels de renouvellement envoyés une seule fois.
 - `tests/Feature/AccountSecurityTest.php` : mot de passe provisoire, double authentification (activation, connexion en deux étapes, codes de secours, rejeu, obligation), vecteurs RFC 6238.
 - `tests/Feature/ImportExportTest.php` : import d'élèves (CSV et Excel), de notes et de paiements, refus complet d'un fichier en erreur.

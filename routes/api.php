@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Auth\ParentAuthController;
 use App\Http\Controllers\Api\V1\Central\FedaPayWebhookController;
 use App\Http\Controllers\Api\V1\Central\PublicController;
 use App\Http\Controllers\Api\V1\Parent\ParentPortalController;
+use App\Http\Controllers\Api\V1\Parent\PushTokenController;
 use App\Http\Controllers\Api\V1\Platform\BillingController;
 use App\Http\Controllers\Api\V1\Platform\DemoRequestController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
@@ -253,6 +254,8 @@ Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'ac
     // Parents (application mobile et web)
     Route::prefix('parent')->middleware(['role:parent', 'feature:parent_portal'])->group(function () {
         Route::get('children', [ParentPortalController::class, 'children']);
+        Route::post('push-token', [PushTokenController::class, 'store']);
+        Route::delete('push-token', [PushTokenController::class, 'destroy']);
         Route::get('children/{student}', [ParentPortalController::class, 'child'])->whereNumber('student');
         Route::get('announcements', [ParentPortalController::class, 'announcements']);
         Route::get('documents', [ParentPortalController::class, 'documents'])->middleware('feature:documents');

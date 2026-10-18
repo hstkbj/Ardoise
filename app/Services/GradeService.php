@@ -96,14 +96,34 @@ class GradeService
         ActivityLog::record('assessment.validated', $assessment);
 
         $subject = $assessment->classSubject->subject->name;
-        $students = $assessment->grades()->with('student')->whereNotNull('score')->get()->pluck('student')->filter();
+        $grades = $assessment->grades()->with('student')->whereNotNull('score')->get()->filter(fn ($g) => $g->student);
+        $links = ['parent' => '/parent/grades', 'teacher' => '/teacher/assessments', 'staff' => '/admin/assessments'];
+        $classId = $assessment->classSubject->class_room_id;
+        $max = rtrim(rtrim(number_format((float) $assessment->max_score, 2, ',', ''), '0'), ',');
+
+        // Parents : un message par enfant avec sa note (« Awa · Mathématiques » — « Interrogation 2 : 14/20 »)
+        foreach ($grades as $grade) {
+            $score = rtrim(rtrim(number_format((float) $grade->score, 2, ',', ''), '0'), ',');
+            $this->notifier->event(
+                'grades.published',
+                $grade->student->first_name.' · '.$subject,
+                "{$assessment->title} : {$score}/{$max}",
+                $grade->student,
+                $links,
+                [$classId],
+                only: ['parents'],
+            );
+        }
+
+        // Personnel et enseignants éventuellement prévenus : un seul message pour l'évaluation
         $this->notifier->event(
             'grades.published',
-            'Nouvelle note · '.$subject,
-            $assessment->title.' : la note est disponible.',
-            $students,
-            ['parent' => '/parent/grades', 'teacher' => '/teacher/assessments', 'staff' => '/admin/assessments'],
-            [$assessment->classSubject->class_room_id],
+            'Notes validées · '.$subject,
+            $assessment->title.' : les notes sont disponibles.',
+            $grades->pluck('student'),
+            $links,
+            [$classId],
+            except: ['parents'],
         );
     }
 

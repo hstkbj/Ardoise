@@ -50,6 +50,7 @@ class ParentAccessService
         }
 
         $parent->user?->tokens()->delete();
+        $parent->user?->pushTokens()->delete();
     }
 
     public function find(string $input): ?ParentAccessCode

@@ -28,6 +28,13 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Notifications push de l'application parents (service gratuit d'Expo, relais vers FCM et APNs)
+    'expo' => [
+        'push_url' => env('EXPO_PUSH_URL', 'https://exp.host/--/api/v2/push/send'),
+        // Facultatif : jeton d'accès si « Enhanced security for push notifications » est activé sur expo.dev
+        'access_token' => env('EXPO_ACCESS_TOKEN'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

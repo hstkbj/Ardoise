@@ -17,12 +17,12 @@ final class NotificationEvents
 {
     /** @var array<string, array{label: string, group: string, type: string, recipients: list<string>, channels: list<string>}> */
     public const EVENTS = [
-        'attendance.recorded' => ['label' => 'Absence ou retard signalé', 'group' => 'Vie scolaire', 'type' => 'attendance', 'recipients' => ['parents'], 'channels' => ['in_app', 'sms']],
+        'attendance.recorded' => ['label' => 'Absence ou retard signalé', 'group' => 'Vie scolaire', 'type' => 'attendance', 'recipients' => ['parents'], 'channels' => ['in_app', 'push', 'sms']],
         'attendance.justified' => ['label' => 'Justificatif envoyé par un parent', 'group' => 'Vie scolaire', 'type' => 'attendance', 'recipients' => ['secretary', 'director', 'head_teacher'], 'channels' => ['in_app']],
-        'grades.published' => ['label' => 'Notes validées', 'group' => 'Pédagogie', 'type' => 'grade', 'recipients' => ['parents'], 'channels' => ['in_app']],
-        'report_card.published' => ['label' => 'Bulletin publié', 'group' => 'Pédagogie', 'type' => 'report_card', 'recipients' => ['parents'], 'channels' => ['in_app', 'email', 'sms']],
-        'homework.published' => ['label' => 'Nouveau devoir', 'group' => 'Pédagogie', 'type' => 'homework', 'recipients' => ['parents'], 'channels' => ['in_app']],
-        'payment.received' => ['label' => 'Paiement encaissé (reçu au parent)', 'group' => 'Finances', 'type' => 'payment', 'recipients' => ['parents'], 'channels' => ['in_app', 'email']],
+        'grades.published' => ['label' => 'Notes validées', 'group' => 'Pédagogie', 'type' => 'grade', 'recipients' => ['parents'], 'channels' => ['in_app', 'push']],
+        'report_card.published' => ['label' => 'Bulletin publié', 'group' => 'Pédagogie', 'type' => 'report_card', 'recipients' => ['parents'], 'channels' => ['in_app', 'push', 'email', 'sms']],
+        'homework.published' => ['label' => 'Nouveau devoir', 'group' => 'Pédagogie', 'type' => 'homework', 'recipients' => ['parents'], 'channels' => ['in_app', 'push']],
+        'payment.received' => ['label' => 'Paiement encaissé (reçu au parent)', 'group' => 'Finances', 'type' => 'payment', 'recipients' => ['parents'], 'channels' => ['in_app', 'push', 'email']],
         'payment.online_received' => ['label' => 'Paiement en ligne reçu (FedaPay)', 'group' => 'Finances', 'type' => 'payment', 'recipients' => ['accountant'], 'channels' => ['in_app']],
         'payment.online_pending' => ['label' => 'Paiement à confirmer par la comptabilité', 'group' => 'Finances', 'type' => 'payment', 'recipients' => ['accountant', 'school_admin'], 'channels' => ['in_app']],
         'document.requested' => ['label' => 'Demande de document d’un parent', 'group' => 'Secrétariat', 'type' => 'document', 'recipients' => ['secretary', 'school_admin'], 'channels' => ['in_app', 'email']],
@@ -50,6 +50,7 @@ final class NotificationEvents
         'in_app' => 'Application',
         'email' => 'E-mail',
         'sms' => 'SMS',
+        'push' => 'Push (app parents)',
     ];
 
     /** @return array<string, array{recipients: list<string>, channels: list<string>}> */
@@ -66,13 +67,21 @@ final class NotificationEvents
     public static function rules(): array
     {
         $saved = (array) Setting::get('notification_rules', 'rules', []);
+        // Règles enregistrées avant l'arrivée du push : le canal push par défaut y est ajouté
+        $pushConfigured = (bool) Setting::get('notification_rules', 'push_configured', false);
         $rules = [];
 
         foreach (self::defaults() as $event => $default) {
             $rule = is_array($saved[$event] ?? null) ? $saved[$event] : [];
+            $channels = $rule['channels'] ?? $default['channels'];
+
+            if (! $pushConfigured && isset($rule['channels']) && in_array('push', $default['channels'], true)) {
+                $channels = [...(array) $channels, 'push'];
+            }
+
             $rules[$event] = [
                 'recipients' => self::clean($rule['recipients'] ?? $default['recipients'], self::RECIPIENTS),
-                'channels' => self::clean($rule['channels'] ?? $default['channels'], self::CHANNELS),
+                'channels' => self::clean($channels, self::CHANNELS),
             ];
         }
 

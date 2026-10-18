@@ -4,9 +4,11 @@ namespace App\Models\Tenant;
 
 use App\Models\Concerns\HasTwoFactorAuthentication;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -58,6 +60,21 @@ class User extends Authenticatable
     public function parentProfile(): HasOne
     {
         return $this->hasOne(ParentProfile::class);
+    }
+
+    public function pushTokens(): HasMany
+    {
+        return $this->hasMany(PushToken::class);
+    }
+
+    /**
+     * Téléphones qui reçoivent les notifications push (application parents).
+     *
+     * @return list<string>
+     */
+    public function routeNotificationForPush(): array
+    {
+        return $this->pushTokens()->pluck('token')->all();
     }
 
     /** Numéro utilisé pour les SMS (le parent n'a pas de téléphone de connexion). */
@@ -130,7 +147,7 @@ class User extends Authenticatable
             return $this->campusIdsCache = null;
         }
 
-        $ids = \Illuminate\Support\Facades\DB::connection('tenant')
+        $ids = DB::connection('tenant')
             ->table('campus_user')->where('user_id', $this->id)->pluck('campus_id')->map(fn ($id) => (int) $id)->all();
 
         return $this->campusIdsCache = ($ids === [] ? null : $ids);
