@@ -39,7 +39,7 @@ const totalPoints = computed(() => props.report.subjects.reduce((a, s) => a + (s
         </thead>
         <tbody>
           <tr v-for="s in report.subjects" :key="s.name">
-            <td class="border border-line px-2 py-1.5"><span class="font-medium">{{ s.name }}</span><br /><span class="text-xs text-subtle">{{ s.teacher }}</span></td>
+            <td class="border border-line px-2 py-1.5"><span class="font-medium">{{ s.name }}</span></td>
             <td class="border border-line px-2 py-1.5 text-right tabular">{{ Number(s.coefficient).toLocaleString('fr-FR') }}</td>
             <td class="border border-line px-2 py-1.5 text-right font-semibold tabular" :class="s.average != null && s.average < 10 ? 'text-danger-600' : ''">{{ fmt(s.average) }}</td>
             <td class="border border-line px-2 py-1.5 text-right tabular">{{ s.average == null ? '—' : fmt(s.average * s.coefficient) }}</td>

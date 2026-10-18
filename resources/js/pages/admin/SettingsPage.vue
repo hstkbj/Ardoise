@@ -7,7 +7,9 @@ import FormField from '@/components/ui/FormField.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import LoadingState from '@/components/ui/LoadingState.vue';
 import ErrorState from '@/components/ui/ErrorState.vue';
+import ReportHeaderPreview from '@/components/domain/ReportHeaderPreview.vue';
 import { settingsApi } from '@/services/api';
+import { openFile } from '@/utils/format';
 import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
 
@@ -46,6 +48,18 @@ const SCHOOL = {
     { key: 'show_rank', label: 'Afficher le rang', type: 'select', options: yesNo },
     { key: 'show_class_average', label: 'Afficher la moyenne de classe', type: 'select', options: yesNo },
     { key: 'decisions', label: 'Décisions proposées (une par ligne)', type: 'textarea', span: 2, rows: 6 },
+    // En-tête du bulletin (bloc dédié avec aperçu)
+    { key: 'header_lines', group: 'header', label: 'Lignes officielles (une par ligne)', type: 'textarea', span: 2, rows: 3, placeholder: 'République du Bénin\nMinistère des Enseignements Secondaire…\nDirection départementale…', hint: '6 lignes maximum, imprimées en petites capitales au-dessus du nom de l’école.' },
+    { key: 'header_logo', group: 'header', label: 'Logo de l’école', type: 'select', options: [{ value: 'left', label: 'À gauche' }, { value: 'center', label: 'Au centre, au-dessus du nom' }, { value: 'none', label: 'Ne pas afficher' }], hint: 'Le logo se change dans l’onglet Identité.' },
+    { key: 'second_logo', group: 'header', label: 'Second logo, à droite (facultatif)', type: 'file', accept: 'image/png,image/jpeg', hint: 'Armoiries, logo du ministère… PNG ou JPG, 2 Mo max.' },
+    { key: 'header_show', group: 'header', label: 'Informations sous le nom de l’école', type: 'checkboxes', span: 2, options: [{ value: 'motto', label: 'Devise' }, { value: 'address', label: 'Adresse' }, { value: 'phone', label: 'Téléphone' }, { value: 'email', label: 'E-mail' }, { value: 'legal_id', label: 'N° d’autorisation' }], hint: 'Elles viennent des onglets Identité et Coordonnées.' },
+    { key: 'header_title', group: 'header', label: 'Titre du document', placeholder: 'Bulletin de notes' },
+    { key: 'show_student_photo', group: 'header', label: 'Photo de l’élève', type: 'select', options: [{ value: 'yes', label: 'Afficher (si la fiche en a une)' }, { value: 'no', label: 'Ne pas afficher' }] },
+    // Pied du bulletin
+    { key: 'signature_title', group: 'signature', label: 'Titre du signataire', placeholder: 'Le chef d’établissement' },
+    { key: 'signatory_name', group: 'signature', label: 'Nom du signataire', placeholder: 'M. Koffi ADJOVI' },
+    { key: 'signature', group: 'signature', label: 'Signature', type: 'file', accept: 'image/png,image/jpeg', hint: 'Image PNG à fond transparent de préférence.' },
+    { key: 'stamp', group: 'signature', label: 'Cachet de l’école', type: 'file', accept: 'image/png,image/jpeg', hint: 'Image PNG à fond transparent de préférence.' },
   ] },
   notifications: { label: 'Notifications', fields: [
     { key: 'absence_notify', label: 'Prévenir les parents d’une absence', type: 'select', options: [{ value: 'immediate', label: 'Immédiatement' }, { value: 'daily', label: 'Récapitulatif quotidien' }, { value: 'never', label: 'Jamais' }] },
@@ -135,6 +149,36 @@ function toggleRule(event, kind, value) {
   const i = list.indexOf(value);
   i === -1 ? list.push(value) : list.splice(i, 1);
 }
+// Bulletins : images enregistrées ou choisies, à retirer, et identité de l'école pour l'aperçu
+const HEADER_GROUPS = [
+  { key: 'header', title: 'En-tête du bulletin', text: 'Ce qui est imprimé en haut de chaque bulletin, au-dessus de l’identité de l’élève.' },
+  { key: 'signature', title: 'Signature et cachet', text: 'Imprimés en bas à droite du bulletin, à la place de la ligne de signature.' },
+];
+const groupFields = (group) => (sections[tab.value]?.fields || []).filter((f) => f.group === group);
+const school = ref({});
+const previews = new Map();
+function previewUrl(file) {
+  if (!previews.has(file)) previews.set(file, URL.createObjectURL(file));
+  return previews.get(file);
+}
+function imageOf(key) {
+  if (typeof File !== 'undefined' && values[key] instanceof File) return previewUrl(values[key]);
+  return values._remove?.includes(key) ? null : values._extra?.[key] || null;
+}
+const headerImages = computed(() => ({ second_logo: imageOf('second_logo'), signature: imageOf('signature'), stamp: imageOf('stamp') }));
+function removeImage(key) {
+  values[key] = null;
+  if (!values._remove.includes(key)) values._remove.push(key);
+}
+async function loadSchool() {
+  try {
+    const [identity, contact] = await Promise.all([settingsApi.get('identity'), settingsApi.get('contact')]);
+    school.value = { ...contact, ...identity };
+  } catch {
+    school.value = {};
+  }
+}
+
 function copy(text) {
   navigator.clipboard?.writeText(text).then(() => ui.toast('Copié.'));
 }
@@ -154,6 +198,8 @@ async function load() {
     });
     values._logo = data?.logo ?? null;
     values._extra = data;
+    values._remove = [];
+    if (tab.value === 'reports' && !props.platform) loadSchool();
     if (tab.value === 'notification_rules') values.rules = JSON.parse(JSON.stringify(data.rules));
   } catch (e) {
     error.value = e;
@@ -169,6 +215,7 @@ async function save() {
   errors.value = {};
   try {
     const payload = Object.fromEntries(Object.entries(values).filter(([k, v]) => !k.startsWith('_') && !(v === null && sections[tab.value].fields.find((f) => f.key === k)?.type === 'file')));
+    if (values._remove?.length) payload.remove_files = [...values._remove];
     await (props.platform ? settingsApi.platformSave(tab.value, payload) : settingsApi.save(tab.value, payload));
     ui.toast('Paramètres enregistrés.');
     load();
@@ -221,8 +268,31 @@ async function save() {
       </div>
 
       <fieldset v-if="sections[tab].fields.length" :disabled="readOnly" class="grid gap-4 sm:grid-cols-2">
-        <FormField v-for="f in sections[tab].fields" :key="f.key" v-model="values[f.key]" :field="f.type === 'password' ? { ...f, hint: secretHint(f.key) || f.hint } : f" :error="errors[f.key]" />
+        <FormField v-for="f in sections[tab].fields.filter((x) => !x.group)" :key="f.key" v-model="values[f.key]" :field="f.type === 'password' ? { ...f, hint: secretHint(f.key) || f.hint } : f" :error="errors[f.key]" />
       </fieldset>
+      <div v-if="tab === 'reports' && !platform" class="grid gap-6 border-t border-line-soft pt-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div class="space-y-6">
+          <fieldset v-for="g in HEADER_GROUPS" :key="g.key" :disabled="readOnly" class="space-y-4">
+            <legend class="text-base font-semibold">{{ g.title }}</legend>
+            <p class="-mt-2 text-sm text-muted">{{ g.text }}</p>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div v-for="f in groupFields(g.key)" :key="f.key" class="flex flex-col gap-2" :class="f.span === 2 ? 'sm:col-span-2' : ''">
+                <FormField v-model="values[f.key]" :field="{ ...f, span: 1 }" :error="errors[f.key]" />
+                <div v-if="f.type === 'file' && imageOf(f.key)" class="flex items-center gap-3">
+                  <img :src="imageOf(f.key)" :alt="f.label" class="size-12 rounded-lg border border-line bg-white object-contain" />
+                  <button v-if="!readOnly" type="button" class="btn btn-ghost btn-sm" @click="removeImage(f.key)"><AppIcon name="trash" class="size-4" />Retirer</button>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+        <div class="space-y-3 lg:sticky lg:top-4 lg:self-start">
+          <p class="text-xs font-semibold tracking-wide text-subtle uppercase">Aperçu</p>
+          <ReportHeaderPreview :settings="values" :school="school" :images="headerImages" />
+          <button type="button" class="btn btn-secondary btn-sm w-full" @click="openFile('/settings/reports/preview')"><AppIcon name="file" class="size-4" />Aperçu PDF (réglages enregistrés)</button>
+        </div>
+      </div>
+
       <div v-if="!readOnly" class="flex justify-end"><button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button></div>
     </form>
   </div>

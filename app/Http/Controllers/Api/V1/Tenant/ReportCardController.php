@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\ClassRoom;
 use App\Models\Tenant\ReportCard;
+use App\Models\Tenant\Setting;
 use App\Models\Tenant\Student;
 use App\Models\Tenant\Term;
 use App\Models\Tenant\User;
 use App\Services\ReportCardService;
 use App\Services\UnpaidRule;
+use App\Support\ReportCardHeader;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -129,11 +132,41 @@ class ReportCardController extends Controller
     {
         $term = $this->term($request->integer('term_id') ?: null);
         $this->ensureCanSee($request->user(), $student, $term);
-        $html = view('pdf.report-card', ['report' => $this->cards->present($student, $term)])->render();
+        $report = $this->cards->present($student, $term);
+        $html = view('pdf.report-card', ['report' => $report, 'header' => ReportCardHeader::for($student, $report['school'])])->render();
         $filename = 'bulletin-'.str($student->full_name)->slug().'-'.str($term->name)->slug().'.pdf';
 
-        if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
-            return \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4')->download($filename);
+        return $this->pdfResponse($html, $filename);
+    }
+
+    /** GET /settings/reports/preview : bulletin fictif avec l'en-tête et le pied enregistrés, pour vérifier la mise en page. */
+    public function headerPreview(): Response
+    {
+        $this->authorize('settings.view');
+
+        $subjects = collect([['Français', 3, 13.5, 11.8], ['Mathématiques', 4, 15.25, 10.9], ['Anglais', 2, 12.0, 11.2], ['Histoire-Géographie', 2, 9.5, 10.4], ['SVT', 2, 14.0, 11.7]])
+            ->map(fn ($s) => ['name' => $s[0], 'teacher' => 'M. ENSEIGNANT', 'coefficient' => $s[1], 'average' => $s[2], 'class_average' => $s[3], 'appreciation' => ReportCardService::appreciation($s[2])])
+            ->all();
+        $report = [
+            'school' => (string) (Setting::get('identity', 'name') ?? tenant()?->name),
+            'academic_year' => Term::current()?->academicYear?->name ?? now()->year.'-'.(now()->year + 1),
+            'term' => Term::current()?->name ?? '1er trimestre',
+            'student' => ['full_name' => 'NOM Prénom de l’élève', 'matricule' => 'EXEMPLE-001', 'birth_date' => now()->subYears(12)->toDateString(), 'class_name' => '5e A'],
+            'class_size' => 42, 'subjects' => $subjects, 'general_average' => 13.21, 'class_average' => 11.24,
+            'show_rank' => Setting::get('reports', 'show_rank', 'yes') === 'yes', 'rank' => 7,
+            'absences' => 2, 'late' => 1, 'head_teacher_comment' => 'Bon trimestre, continuez ainsi.', 'council_decision' => 'Encouragements',
+        ];
+        $header = ReportCardHeader::for(null, $report['school']) + ['preview' => true];
+
+        return $this->pdfResponse(view('pdf.report-card', ['report' => $report, 'header' => $header])->render(), 'apercu-bulletin.pdf', inline: true);
+    }
+
+    protected function pdfResponse(string $html, string $filename, bool $inline = false): Response
+    {
+        if (class_exists(Pdf::class)) {
+            $pdf = Pdf::loadHTML($html)->setPaper('a4');
+
+            return $inline ? $pdf->stream($filename) : $pdf->download($filename);
         }
 
         return response($html)->header('Content-Type', 'text/html; charset=UTF-8');

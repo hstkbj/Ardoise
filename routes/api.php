@@ -238,6 +238,7 @@ Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'ac
         Route::put('roles/{role}/permissions', [Tenant\RoleController::class, 'syncPermissions']);
         Route::apiResource('roles', Tenant\RoleController::class);
 
+        Route::get('settings/reports/preview', [Tenant\ReportCardController::class, 'headerPreview'])->middleware('feature:grades');
         Route::get('settings/{section}', [Tenant\SettingController::class, 'show']);
         Route::post('settings/{section}', [Tenant\SettingController::class, 'update']);
         Route::put('settings/{section}', [Tenant\SettingController::class, 'update']);

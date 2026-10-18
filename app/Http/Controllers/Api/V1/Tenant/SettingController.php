@@ -19,7 +19,14 @@ class SettingController extends Controller
         'contact' => ['address' => 'nullable|string|max:255', 'phone' => 'nullable|string|max:30', 'email' => 'nullable|email', 'legal_id' => 'nullable|string|max:60', 'tax_id' => 'nullable|string|max:60'],
         'year' => ['academic_year_id' => 'nullable|integer', 'period_type' => 'nullable|in:trimester,semester', 'week_days' => 'nullable|array'],
         'grading' => ['max_score' => 'required|numeric|min:1|max:100', 'pass_mark' => 'required|numeric|min:0', 'rounding' => 'required|in:0.01,0.1,0.25,0.5', 'lock_after_validation' => 'nullable|in:yes,no', 'composition_weight' => 'nullable|numeric|min:0|max:100'],
-        'reports' => ['show_rank' => 'nullable|in:yes,no', 'show_class_average' => 'nullable|in:yes,no', 'decisions' => 'nullable|string|max:2000'],
+        'reports' => [
+            'show_rank' => 'nullable|in:yes,no', 'show_class_average' => 'nullable|in:yes,no', 'decisions' => 'nullable|string|max:2000',
+            'header_lines' => 'nullable|string|max:600', 'header_logo' => 'nullable|in:left,center,none',
+            'header_show' => 'nullable|array', 'header_show.*' => 'in:motto,address,phone,email,legal_id',
+            'header_title' => 'nullable|string|max:80', 'show_student_photo' => 'nullable|in:yes,no',
+            'signature_title' => 'nullable|string|max:80', 'signatory_name' => 'nullable|string|max:80',
+            'remove_files' => 'nullable|array', 'remove_files.*' => 'in:second_logo,signature,stamp',
+        ],
         'notifications' => ['absence_notify' => 'nullable|in:immediate,daily,never', 'sms_sender' => 'nullable|string|max:11'],
         'notification_rules' => ['rules' => 'required|array', 'rules.*.recipients' => 'present|array', 'rules.*.recipients.*' => 'string', 'rules.*.channels' => 'present|array', 'rules.*.channels.*' => 'in:in_app,email,sms'],
         'online_payments' => ['enabled' => 'required|in:yes,no', 'environment' => 'required|in:sandbox,live', 'public_key' => 'nullable|string|max:200', 'secret_key' => 'nullable|string|max:200', 'webhook_secret' => 'nullable|string|max:200'],
@@ -74,7 +81,13 @@ class SettingController extends Controller
             }
         }
 
-        foreach (['logo', 'signature'] as $file) {
+        // Images retirées (bulletin) : l'en-tête n'affiche plus rien à leur place
+        foreach ($values['remove_files'] ?? [] as $file) {
+            $values[$file] = null;
+        }
+        unset($values['remove_files']);
+
+        foreach (['logo', 'signature', 'second_logo', 'stamp'] as $file) {
             if ($request->hasFile($file)) {
                 $request->validate([$file => ['image', 'max:2048']]);
                 $values[$file] = Storage::disk('public')->url($request->file($file)->store('tenants/'.tenant()->code.'/branding', 'public'));
