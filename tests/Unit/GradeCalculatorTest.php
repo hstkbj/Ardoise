@@ -7,14 +7,37 @@ use PHPUnit\Framework\TestCase;
 
 class GradeCalculatorTest extends TestCase
 {
-    public function test_subject_average_is_weighted_and_normalized_to_20(): void
+    public function test_subject_average_is_the_interrogation_average_plus_the_two_devoirs_divided_by_three(): void
     {
-        $avg = (new GradeCalculator)->subjectAverage([
-            ['score' => 15, 'max' => 20, 'coefficient' => 3],
-            ['score' => 8, 'max' => 10, 'coefficient' => 1],
+        $detail = (new GradeCalculator)->subjectBreakdown([
+            ['score' => 12, 'max' => 20, 'type' => 'interrogation'],
+            ['score' => 7, 'max' => 10, 'type' => 'interrogation'],   // ramenée sur 20 : 14
+            ['score' => 10, 'max' => 20, 'type' => 'oral'],
+            ['score' => 15, 'max' => 20, 'type' => 'devoir'],
+            ['score' => 9, 'max' => 20, 'type' => 'composition'],
         ]);
 
-        $this->assertSame(15.25, $avg);
+        // Moyenne d'interrogation (12 + 14 + 10) / 3 = 12 ; moyenne (12 + 15 + 9) / 3 = 12
+        $this->assertSame([12.0, 14.0, 10.0], $detail['interros']);
+        $this->assertSame(12.0, $detail['interro_average']);
+        $this->assertSame([15.0, 9.0], $detail['devoirs']);
+        $this->assertSame(12.0, $detail['average']);
+    }
+
+    public function test_a_missing_note_is_left_out_of_the_division(): void
+    {
+        $calc = new GradeCalculator;
+
+        // Un seul devoir : (moyenne d'interrogation + devoir) / 2
+        $this->assertSame(13.5, $calc->subjectAverage([
+            ['score' => 12, 'max' => 20, 'type' => 'interrogation'],
+            ['score' => 15, 'max' => 20, 'type' => 'devoir'],
+            ['score' => null, 'max' => 20, 'type' => 'devoir', 'absent' => true],
+        ]));
+        // Pas encore d'interrogation : moyenne des devoirs
+        $this->assertSame(11.0, $calc->subjectAverage([['score' => 13, 'max' => 20, 'type' => 'devoir'], ['score' => 9, 'max' => 20, 'type' => 'examen']]));
+        // Seulement des interrogations
+        $this->assertSame(11.0, $calc->subjectAverage([['score' => 13, 'max' => 20, 'type' => 'interrogation'], ['score' => 9, 'max' => 20, 'type' => 'controle_continu']]));
     }
 
     public function test_absent_students_are_excluded(): void

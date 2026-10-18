@@ -144,15 +144,24 @@ class ReportCardController extends Controller
     {
         $this->authorize('settings.view');
 
-        $subjects = collect([['Français', 3, 13.5, 11.8], ['Mathématiques', 4, 15.25, 10.9], ['Anglais', 2, 12.0, 11.2], ['Histoire-Géographie', 2, 9.5, 10.4], ['SVT', 2, 14.0, 11.7]])
-            ->map(fn ($s) => ['name' => $s[0], 'teacher' => 'M. ENSEIGNANT', 'coefficient' => $s[1], 'average' => $s[2], 'class_average' => $s[3], 'appreciation' => ReportCardService::appreciation($s[2])])
-            ->all();
+        // Matière, coef., interrogations, devoirs, rang dans la matière ; moyennes calculées comme pour un vrai bulletin
+        $calc = $this->cards->calculator();
+        $subjects = collect([
+            ['Français', 3, [12, 14, 11], [13, 15], 8], ['Mathématiques', 4, [16, 13], [15.5, 14], 4], ['Anglais', 2, [10, 12, 14], [11, 12], 12],
+            ['Histoire-Géographie', 2, [9, 8], [10, 9.5], 25], ['SVT', 2, [15, 13, 14], [14, 12], 6],
+        ])->map(function ($s) use ($calc) {
+            $marks = [...array_map(fn ($v) => ['score' => $v, 'max' => 20, 'type' => 'interrogation'], $s[2]), ...array_map(fn ($v) => ['score' => $v, 'max' => 20, 'type' => 'devoir'], $s[3])];
+            $detail = $calc->subjectBreakdown($marks);
+
+            return ['name' => $s[0], 'coefficient' => $s[1], 'interros' => $detail['interros'], 'interro_average' => $detail['interro_average'], 'devoirs' => $detail['devoirs'],
+                'average' => $detail['average'], 'rank' => $s[4], 'class_average' => null, 'appreciation' => ReportCardService::appreciation($detail['average'])];
+        })->all();
         $report = [
             'school' => (string) (Setting::get('identity', 'name') ?? tenant()?->name),
             'academic_year' => Term::current()?->academicYear?->name ?? now()->year.'-'.(now()->year + 1),
             'term' => Term::current()?->name ?? '1er trimestre',
             'student' => ['full_name' => 'NOM Prénom de l’élève', 'matricule' => 'EXEMPLE-001', 'birth_date' => now()->subYears(12)->toDateString(), 'class_name' => '5e A'],
-            'class_size' => 42, 'subjects' => $subjects, 'general_average' => 13.21, 'class_average' => 11.24,
+            'class_size' => 42, 'subjects' => $subjects, 'general_average' => $calc->generalAverage($subjects), 'class_average' => 11.24,
             'show_rank' => Setting::get('reports', 'show_rank', 'yes') === 'yes', 'rank' => 7,
             'absences' => 2, 'late' => 1, 'head_teacher_comment' => 'Bon trimestre, continuez ainsi.', 'council_decision' => 'Encouragements',
         ];

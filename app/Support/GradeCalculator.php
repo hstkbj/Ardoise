@@ -6,7 +6,10 @@ namespace App\Support;
  * Calculs de moyennes et de rangs (sans dépendance au framework).
  *
  * Règles :
- *  - chaque note est ramenée sur 20 puis pondérée par le coefficient de l'évaluation ;
+ *  - chaque note est ramenée sur 20 ;
+ *  - moyenne d'interrogation = somme des interrogations / nombre d'interrogations ;
+ *  - moyenne de la matière = (moyenne d'interrogation + somme des devoirs) / (1 + nombre de devoirs),
+ *    soit (MI + D1 + D2) / 3 avec deux devoirs ; une note manquante n'est pas comptée ;
  *  - un élève absent ou sans note n'est pas compté (ce n'est pas un 0) ;
  *  - moyenne générale = moyenne des matières pondérée par le coefficient de la matière ;
  *  - rang « olympique » : les ex æquo partagent le rang (1, 2, 2, 4).
@@ -15,24 +18,52 @@ final class GradeCalculator
 {
     public function __construct(private float $step = 0.01) {}
 
+    /** Types d'évaluation comptés comme interrogations ; tous les autres comptent comme devoirs. */
+    public const INTERRO_TYPES = ['interrogation', 'oral', 'controle_continu'];
+
     /**
-     * @param  array<int, array{score: float|null, max: float, coefficient: float, absent?: bool}>  $marks
+     * @param  array<int, array{score: float|null, max: float, type?: string|null, absent?: bool}>  $marks
      */
     public function subjectAverage(array $marks): ?float
     {
-        $sum = 0.0;
-        $weights = 0.0;
+        return $this->subjectBreakdown($marks)['average'];
+    }
+
+    /**
+     * Détail d'une matière : notes d'interrogation (sur 20), leur moyenne, notes de devoir (sur 20)
+     * et moyenne de la matière. Les notes sont données dans l'ordre chronologique.
+     *
+     * @param  array<int, array{score: float|null, max: float, type?: string|null, absent?: bool}>  $marks
+     * @return array{interros: list<float>, interro_average: float|null, devoirs: list<float>, average: float|null}
+     */
+    public function subjectBreakdown(array $marks): array
+    {
+        $interros = [];
+        $devoirs = [];
 
         foreach ($marks as $mark) {
-            if (! empty($mark['absent']) || $mark['score'] === null || $mark['max'] <= 0 || $mark['coefficient'] <= 0) {
+            if (! empty($mark['absent']) || $mark['score'] === null || $mark['max'] <= 0) {
                 continue;
             }
 
-            $sum += ($mark['score'] / $mark['max']) * 20 * $mark['coefficient'];
-            $weights += $mark['coefficient'];
+            $score = round(($mark['score'] / $mark['max']) * 20, 2);
+
+            if (in_array($mark['type'] ?? null, self::INTERRO_TYPES, true)) {
+                $interros[] = $score;
+            } else {
+                $devoirs[] = $score;
+            }
         }
 
-        return $weights > 0 ? $this->round($sum / $weights) : null;
+        $interroAverage = $interros ? $this->round(array_sum($interros) / count($interros)) : null;
+        $parts = $interroAverage === null ? $devoirs : [$interroAverage, ...$devoirs];
+
+        return [
+            'interros' => $interros,
+            'interro_average' => $interroAverage,
+            'devoirs' => $devoirs,
+            'average' => $parts ? $this->round(array_sum($parts) / count($parts)) : null,
+        ];
     }
 
     /**
@@ -65,7 +96,7 @@ final class GradeCalculator
 
     /**
      * @param  array<int|string, float|null>  $averages  identifiant => moyenne
-     * @return array<int|string, int|null>  identifiant => rang (null si pas de moyenne)
+     * @return array<int|string, int|null> identifiant => rang (null si pas de moyenne)
      */
     public function rank(array $averages): array
     {

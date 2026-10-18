@@ -6,6 +6,9 @@ class ReportCardSubject extends TenantModel
 {
     protected function casts(): array
     {
-        return ['coefficient' => 'float', 'average' => 'float', 'class_average' => 'float'];
+        return [
+            'coefficient' => 'float', 'average' => 'float', 'class_average' => 'float', 'interro_average' => 'float',
+            'interro_scores' => 'array', 'devoir_scores' => 'array', 'rank' => 'integer',
+        ];
     }
 }

@@ -8,6 +8,13 @@ const props = defineProps({ report: { type: Object, required: true } });
 const fmt = (v) => (v == null ? '—' : Number(v).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const totalCoef = computed(() => props.report.subjects.reduce((a, s) => a + Number(s.coefficient), 0));
 const totalPoints = computed(() => props.report.subjects.reduce((a, s) => a + (s.average ?? 0) * s.coefficient, 0));
+/** Note brute : 12, 14,5 */
+const note = (v) => (v == null ? '—' : Number(v).toLocaleString('fr-FR', { maximumFractionDigits: 2 }));
+/** Colonnes : au moins 3 interrogations (I1 à I3) et 2 devoirs (D1, D2) */
+const interroCols = computed(() => Math.max(3, ...props.report.subjects.map((s) => s.interros?.length ?? 0)));
+const devoirCols = computed(() => Math.max(2, ...props.report.subjects.map((s) => s.devoirs?.length ?? 0)));
+const rankLabel = (r) => (r ? `${r}${r === 1 ? 'er' : 'e'}` : '—');
+const colCount = computed(() => 6 + interroCols.value + devoirCols.value + (props.report.show_rank ? 1 : 0));
 </script>
 
 <template>
@@ -26,35 +33,45 @@ const totalPoints = computed(() => props.report.subjects.reduce((a, s) => a + (s
     </dl>
 
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[640px] border-collapse">
+      <table class="w-full min-w-[820px] border-collapse">
         <thead>
           <tr class="bg-ground text-left text-xs">
-            <th scope="col" class="border border-line px-2 py-2 font-semibold">Matière</th>
-            <th scope="col" class="border border-line px-2 py-2 text-right font-semibold">Coef.</th>
-            <th scope="col" class="border border-line px-2 py-2 text-right font-semibold">Moyenne</th>
-            <th scope="col" class="border border-line px-2 py-2 text-right font-semibold">Moy. × coef.</th>
-            <th scope="col" class="border border-line px-2 py-2 text-right font-semibold">Moy. classe</th>
-            <th scope="col" class="border border-line px-2 py-2 font-semibold">Appréciation</th>
+            <th scope="col" rowspan="2" class="border border-line px-2 py-2 font-semibold">Matière</th>
+            <th scope="col" rowspan="2" class="border border-line px-2 py-2 text-right font-semibold">Coef.</th>
+            <th scope="colgroup" :colspan="interroCols + 1" class="border border-line px-2 py-1.5 text-center font-semibold">Interrogations</th>
+            <th scope="colgroup" :colspan="devoirCols" class="border border-line px-2 py-1.5 text-center font-semibold">Devoirs</th>
+            <th scope="col" rowspan="2" class="border border-line px-2 py-2 text-right font-semibold">Moy. /20</th>
+            <th scope="col" rowspan="2" class="border border-line px-2 py-2 text-right font-semibold">Moy. × coef.</th>
+            <th v-if="report.show_rank" scope="col" rowspan="2" class="border border-line px-2 py-2 text-right font-semibold">Rang</th>
+            <th scope="col" rowspan="2" class="border border-line px-2 py-2 font-semibold">Appréciation</th>
+          </tr>
+          <tr class="bg-ground text-xs">
+            <th v-for="i in interroCols" :key="`i${i}`" scope="col" class="border border-line px-2 py-1.5 text-right font-semibold">I{{ i }}</th>
+            <th scope="col" class="border border-line px-2 py-1.5 text-right font-semibold">Moy.</th>
+            <th v-for="i in devoirCols" :key="i" scope="col" class="border border-line px-2 py-1.5 text-right font-semibold">D{{ i }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="s in report.subjects" :key="s.name">
             <td class="border border-line px-2 py-1.5"><span class="font-medium">{{ s.name }}</span></td>
             <td class="border border-line px-2 py-1.5 text-right tabular">{{ Number(s.coefficient).toLocaleString('fr-FR') }}</td>
+            <td v-for="i in interroCols" :key="`i${i}`" class="border border-line px-2 py-1.5 text-right tabular">{{ note(s.interros?.[i - 1]) }}</td>
+            <td class="border border-line px-2 py-1.5 text-right tabular">{{ fmt(s.interro_average) }}</td>
+            <td v-for="i in devoirCols" :key="i" class="border border-line px-2 py-1.5 text-right tabular">{{ note(s.devoirs?.[i - 1]) }}</td>
             <td class="border border-line px-2 py-1.5 text-right font-semibold tabular" :class="s.average != null && s.average < 10 ? 'text-danger-600' : ''">{{ fmt(s.average) }}</td>
             <td class="border border-line px-2 py-1.5 text-right tabular">{{ s.average == null ? '—' : fmt(s.average * s.coefficient) }}</td>
-            <td class="border border-line px-2 py-1.5 text-right tabular text-muted">{{ fmt(s.class_average) }}</td>
-            <td class="border border-line px-2 py-1.5">{{ s.appreciation }}</td>
+            <td v-if="report.show_rank" class="border border-line px-2 py-1.5 text-right tabular">{{ rankLabel(s.rank) }}</td>
+            <td class="border border-line px-2 py-1.5 text-xs">{{ s.appreciation }}</td>
           </tr>
-          <tr v-if="!report.subjects.length"><td colspan="6" class="border border-line px-2 py-6 text-center text-muted">Aucune note validée sur cette période.</td></tr>
+          <tr v-if="!report.subjects.length"><td :colspan="colCount" class="border border-line px-2 py-6 text-center text-muted">Aucune note validée sur cette période.</td></tr>
         </tbody>
         <tfoot>
           <tr class="bg-ground font-semibold">
             <td class="border border-line px-2 py-2">Total</td>
             <td class="border border-line px-2 py-2 text-right tabular">{{ totalCoef.toLocaleString('fr-FR') }}</td>
-            <td class="border border-line px-2 py-2" />
+            <td class="border border-line px-2 py-2" :colspan="interroCols + 2 + devoirCols" />
             <td class="border border-line px-2 py-2 text-right tabular">{{ fmt(totalPoints) }}</td>
-            <td class="border border-line px-2 py-2" colspan="2" />
+            <td class="border border-line px-2 py-2" :colspan="report.show_rank ? 2 : 1" />
           </tr>
         </tfoot>
       </table>

@@ -2,6 +2,11 @@
     $fmt = fn ($v) => $v === null ? '—' : number_format((float) $v, 2, ',', ' ');
     $totalCoef = collect($report['subjects'])->sum('coefficient');
     $totalPoints = collect($report['subjects'])->sum(fn ($s) => ($s['average'] ?? 0) * $s['coefficient']);
+    // Note brute : « 12 », « 14,5 » ; colonnes : au moins 3 interrogations (I1 à I3) et 2 devoirs (D1, D2)
+    $note = fn ($v) => $v === null ? '' : rtrim(rtrim(number_format((float) $v, 2, ',', ''), '0'), ',');
+    $interroCols = max(3, collect($report['subjects'])->map(fn ($s) => count($s['interros'] ?? []))->max() ?? 0);
+    $devoirCols = max(2, collect($report['subjects'])->map(fn ($s) => count($s['devoirs'] ?? []))->max() ?? 0);
+    $rankOf = fn ($r) => $r ? $r.($r == 1 ? 'er' : 'e') : '—';
     // En-tête réglé par l'école : App\Support\ReportCardHeader
     $h = $header ?? \App\Support\ReportCardHeader::for(null, $report['school']);
     $preview = $h['preview'] ?? false;
@@ -20,6 +25,11 @@
     th, td { border: 1px solid #D6D6D0; padding: 3px 6px; text-align: left; }
     th { background: #F1F1EE; font-size: 10px; }
     .num { text-align: right; }
+    .center { text-align: center; }
+    table.grades th, table.grades td { padding: 3px 4px; }
+    table.grades th { font-size: 9px; }
+    .strong { font-weight: bold; }
+    .appreciation { font-size: 9.5px; }
     .low { color: #A12B2B; font-weight: bold; }
     .boxes { display: table; width: 100%; margin-top: 12px; border-spacing: 8px 0; }
     .box { display: table-cell; border: 1px solid #D6D6D0; padding: 8px; width: 33%; }
@@ -104,22 +114,45 @@
     </tr>
 </table>
 
-<table>
+<table class="grades">
     <thead>
-        <tr><th>Matière</th><th class="num">Coef.</th><th class="num">Moyenne</th><th class="num">Moy. × coef.</th><th class="num">Moy. classe</th><th>Appréciation</th></tr>
+        <tr>
+            <th rowspan="2">Matière</th>
+            <th rowspan="2" class="num">Coef.</th>
+            <th colspan="{{ $interroCols + 1 }}" class="center">Interrogations</th>
+            <th colspan="{{ $devoirCols }}" class="center">Devoirs</th>
+            <th rowspan="2" class="num">Moy. /20</th>
+            <th rowspan="2" class="num">Moy. × coef.</th>
+            @if ($report['show_rank'])<th rowspan="2" class="num">Rang</th>@endif
+            <th rowspan="2">Appréciation</th>
+        </tr>
+        <tr>
+            @for ($i = 1; $i <= $interroCols; $i++)<th class="num">I{{ $i }}</th>@endfor
+            <th class="num">Moy.</th>
+            @for ($i = 1; $i <= $devoirCols; $i++)<th class="num">D{{ $i }}</th>@endfor
+        </tr>
     </thead>
     <tbody>
     @foreach ($report['subjects'] as $s)
         <tr>
             <td>{{ $s['name'] }}</td>
-            <td class="num">{{ rtrim(rtrim(number_format($s['coefficient'], 2, ',', ''), '0'), ',') }}</td>
-            <td class="num {{ ($s['average'] ?? 20) < 10 ? 'low' : '' }}">{{ $fmt($s['average']) }}</td>
+            <td class="num">{{ $note($s['coefficient']) }}</td>
+            @for ($i = 0; $i < $interroCols; $i++)<td class="num">{{ isset($s['interros'][$i]) ? $note($s['interros'][$i]) : '—' }}</td>@endfor
+            <td class="num">{{ $fmt($s['interro_average'] ?? null) }}</td>
+            @for ($i = 0; $i < $devoirCols; $i++)<td class="num">{{ isset($s['devoirs'][$i]) ? $note($s['devoirs'][$i]) : '—' }}</td>@endfor
+            <td class="num strong {{ ($s['average'] ?? 20) < 10 ? 'low' : '' }}">{{ $fmt($s['average']) }}</td>
             <td class="num">{{ $s['average'] === null ? '—' : $fmt($s['average'] * $s['coefficient']) }}</td>
-            <td class="num muted">{{ $fmt($s['class_average']) }}</td>
-            <td>{{ $s['appreciation'] }}</td>
+            @if ($report['show_rank'])<td class="num">{{ $rankOf($s['rank'] ?? null) }}</td>@endif
+            <td class="appreciation">{{ $s['appreciation'] }}</td>
         </tr>
     @endforeach
-        <tr><th>Total</th><th class="num">{{ rtrim(rtrim(number_format($totalCoef, 2, ',', ''), '0'), ',') }}</th><th></th><th class="num">{{ $fmt($totalPoints) }}</th><th colspan="2"></th></tr>
+        <tr>
+            <th>Total</th>
+            <th class="num">{{ $note($totalCoef) }}</th>
+            <th colspan="{{ $interroCols + 2 + $devoirCols }}"></th>
+            <th class="num">{{ $fmt($totalPoints) }}</th>
+            <th colspan="{{ $report['show_rank'] ? 2 : 1 }}"></th>
+        </tr>
     </tbody>
 </table>
 

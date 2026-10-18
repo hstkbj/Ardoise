@@ -39,6 +39,8 @@ class ReportCardService
         $assessments = Assessment::whereIn('class_subject_id', $classSubjects->pluck('id'))
             ->where('term_id', $term->id)
             ->where('status', 'validated')
+            ->orderBy('date')
+            ->orderBy('id')
             ->get()
             ->groupBy('class_subject_id');
 
@@ -54,11 +56,11 @@ class ReportCardService
                 $marks = ($assessments->get($cs->id) ?? collect())->map(fn (Assessment $a) => [
                     'score' => $studentGrades->get($a->id)?->score,
                     'max' => $a->max_score,
-                    'coefficient' => $a->coefficient,
+                    'type' => $a->type,
                     'absent' => (bool) $studentGrades->get($a->id)?->is_absent,
-                ])->all();
+                ])->values()->all();
 
-                $subjects[$cs->id] = ['average' => $calc->subjectAverage($marks), 'coefficient' => $cs->coefficient];
+                $subjects[$cs->id] = $calc->subjectBreakdown($marks) + ['coefficient' => $cs->coefficient];
             }
 
             $rows[$student->id] = [
@@ -72,6 +74,15 @@ class ReportCardService
 
         foreach (array_keys($rows) as $id) {
             $rows[$id]['rank'] = $ranks[$id];
+        }
+
+        // Rang de chaque élève dans chaque matière
+        foreach ($classSubjects as $cs) {
+            $subjectRanks = $calc->rank(array_map(fn ($r) => $r['subjects'][$cs->id]['average'], $rows));
+
+            foreach (array_keys($rows) as $id) {
+                $rows[$id]['subjects'][$cs->id]['rank'] = $subjectRanks[$id];
+            }
         }
 
         $subjectInfo = [];
@@ -121,12 +132,17 @@ class ReportCardService
                 $card->subjects()->delete();
 
                 foreach ($data['subjects'] as $csId => $info) {
-                    $average = $row['subjects'][$csId]['average'];
+                    $detail = $row['subjects'][$csId];
+                    $average = $detail['average'];
                     $card->subjects()->create([
                         'subject_id' => $info['subject_id'],
                         'subject_name' => $info['name'],
                         'teacher_name' => $info['teacher'],
                         'coefficient' => $info['coefficient'],
+                        'interro_scores' => $detail['interros'],
+                        'interro_average' => $detail['interro_average'],
+                        'devoir_scores' => $detail['devoirs'],
+                        'rank' => $detail['rank'],
                         'average' => $average,
                         'class_average' => $info['class_average'],
                         'appreciation' => self::appreciation($average),
@@ -192,7 +208,8 @@ class ReportCardService
                 'generated' => true,
                 'subjects' => $card->subjects->map(fn ($s) => [
                     'name' => $s->subject_name, 'teacher' => $s->teacher_name, 'coefficient' => $s->coefficient,
-                    'average' => $s->average, 'class_average' => $s->class_average, 'appreciation' => $s->appreciation,
+                    'interros' => $s->interro_scores ?? [], 'interro_average' => $s->interro_average, 'devoirs' => $s->devoir_scores ?? [],
+                    'average' => $s->average, 'rank' => $s->rank, 'class_average' => $s->class_average, 'appreciation' => $s->appreciation,
                 ])->values()->all(),
                 'general_average' => $card->general_average,
                 'class_average' => $card->class_average,
@@ -220,7 +237,9 @@ class ReportCardService
             'generated' => false,
             'subjects' => collect($data['subjects'])->map(fn ($info, $csId) => [
                 'name' => $info['name'], 'teacher' => $info['teacher'], 'coefficient' => $info['coefficient'],
-                'average' => $row['subjects'][$csId]['average'] ?? null, 'class_average' => $info['class_average'],
+                'interros' => $row['subjects'][$csId]['interros'] ?? [], 'interro_average' => $row['subjects'][$csId]['interro_average'] ?? null,
+                'devoirs' => $row['subjects'][$csId]['devoirs'] ?? [],
+                'average' => $row['subjects'][$csId]['average'] ?? null, 'rank' => $row['subjects'][$csId]['rank'] ?? null, 'class_average' => $info['class_average'],
                 'appreciation' => self::appreciation($row['subjects'][$csId]['average'] ?? null),
             ])->values()->all(),
             'general_average' => $row['general_average'] ?? null,
