@@ -51,7 +51,7 @@ expose_php=0
 INI
 
 # nginx et supervisord sans privilèges : tout tourne sous www-data, port 8080
-RUN cat > /etc/nginx/nginx.conf <<'NGINX'
+RUN rm -f /etc/nginx/nginx.conf && cat > /etc/nginx/nginx.conf <<'NGINX'
 pid /tmp/nginx.pid;
 worker_processes auto;
 error_log /dev/stderr warn;
@@ -70,7 +70,8 @@ http {
     include /etc/nginx/http.d/*.conf;
 }
 NGINX
-RUN cat > /etc/supervisord.conf <<'SUP'
+RUN rm -f /etc/supervisord.conf && cat > /etc/supervisord.conf <<'SUP'
+RUN ls -l /etc/supervisord.conf /etc/nginx/nginx.conf
 [supervisord]
 nodaemon=true
 user=www-data
