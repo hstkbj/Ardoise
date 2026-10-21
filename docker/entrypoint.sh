@@ -24,6 +24,22 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     php artisan tenants:migrate
     echo "==> Migrations (Seeder des donner)"
     php artisan db:seed --force
+    
+    echo "========================================"
+    echo "MIGRATIONS DES BASES TENANTS"
+    echo "========================================"
+
+    php artisan tenants:migrate
+
+    echo "========================================"
+    echo "SEEDERS DES BASES TENANTS"
+    echo "========================================"
+
+    if [ "${RUN_TENANT_SEEDERS:-false}" = "true" ]; then
+        echo "ATTENTION : aucune commande générique de seeding tenant n'est exécutée."
+        echo "Configurez ici la commande tenant:seed adaptée à votre projet."
+    fi
+    
     php artisan storage:link --force || true
 fi
 
