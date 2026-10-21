@@ -22,6 +22,8 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     php artisan migrate --force
     echo "==> Migrations (bases des écoles)"
     php artisan tenants:migrate
+    echo "==> Migrations (Seeder des donner)"
+    php artisan db:seed --force
     php artisan storage:link --force || true
 fi
 
