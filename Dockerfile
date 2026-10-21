@@ -31,9 +31,9 @@ RUN apk add --no-cache nginx supervisor mariadb-client gzip \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j"$(nproc)" pdo_mysql intl zip gd bcmath opcache \
     && apk del .build-deps \
-    && mkdir -p /etc/my.cnf.d /var/lib/nginx/logs \
-    && printf '[client]\\nskip-ssl\\n' > /etc/my.cnf.d/ardoise.cnf \
-    && chown -R www-data:www-data /var/lib/nginx
+    && mkdir -p /etc/my.cnf.d /var/log/nginx /var/lib/nginx/tmp \
+    && printf '[client]\nskip-ssl\n' > /etc/my.cnf.d/ardoise.cnf \
+    && chown -R www-data:www-data /var/lib/nginx /var/log/nginx
 
 # Vérifie que SQLite est bien présent (le build échoue clairement sinon).
 RUN php -m | grep -i pdo_sqlite
@@ -112,13 +112,16 @@ RUN mkdir -p storage/app/public storage/framework/cache storage/framework/sessio
         /tmp/nginx-body /tmp/nginx-fastcgi /tmp/nginx-proxy \
         /tmp/nginx-uwsgi /tmp/nginx-scgi \
     && chown -R www-data:www-data storage bootstrap/cache database \
+        /tmp/nginx-body /tmp/nginx-fastcgi /tmp/nginx-proxy /tmp/nginx-uwsgi /tmp/nginx-scgi \
     && php artisan package:discover --ansi \
     && php artisan storage:link --force \
     && chown -h www-data:www-data public/storage
+
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/ardoise-entrypoint
 
 USER www-data
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
     CMD wget -q -O /dev/null http://127.0.0.1:8080/up || exit 1
+ENTRYPOINT ["ardoise-entrypoint"]
 CMD ["supervisord", "-c", "/etc/supervisord.conf"]
-
