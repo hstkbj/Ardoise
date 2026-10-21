@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
-# Image unique (php-fpm + nginx gérés par supervisord) utilisée par les services
-# app, queue et scheduler de docker-compose.yml ; seule la commande change.
+# Image unique : PHP-FPM + Nginx supervisés dans le même conteneur.
+# Compatible avec un déploiement Render en service Web (port 8080).
 
 # --- Étape 1 : assets front (Vite) -------------------------------------------
 FROM node:20-alpine AS node
@@ -12,11 +12,10 @@ COPY resources ./resources
 COPY public ./public
 RUN npm run build
 
-# --- Étape 2 : dépendances PHP de production ----------------------------------
+# --- Étape 2 : dépendances PHP de production --------------------------------
 FROM composer:2 AS composer
 WORKDIR /app
 COPY composer.json composer.lock ./
-# --no-scripts : artisan n'existe pas encore ; les extensions sont fournies par l'image finale
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
     --no-scripts --ignore-platform-reqs
 COPY . .
@@ -25,8 +24,6 @@ RUN composer dump-autoload --no-dev --optimize --no-scripts --ignore-platform-re
 # --- Étape 3 : image finale ---------------------------------------------------
 FROM php:8.4-fpm-alpine AS app
 
-# mariadb-client fournit mysqldump (backup:run) ; gzip pour les .sql.gz
-# pdo_sqlite et sqlite3 sont déjà compilés dans l'image php officielle
 RUN apk add --no-cache nginx supervisor mariadb-client gzip \
         icu-libs libzip libpng libjpeg-turbo freetype \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev libzip-dev libpng-dev \
@@ -34,9 +31,11 @@ RUN apk add --no-cache nginx supervisor mariadb-client gzip \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j"$(nproc)" pdo_mysql intl zip gd bcmath opcache \
     && apk del .build-deps \
-    && printf '[client]\nskip-ssl\n' > /etc/my.cnf.d/ardoise.cnf
+    && mkdir -p /etc/my.cnf.d /var/lib/nginx/logs \
+    && printf '[client]\\nskip-ssl\\n' > /etc/my.cnf.d/ardoise.cnf \
+    && chown -R www-data:www-data /var/lib/nginx
 
-# Vérifie que SQLite est bien présent (le build échoue clairement sinon)
+# Vérifie que SQLite est bien présent (le build échoue clairement sinon).
 RUN php -m | grep -i pdo_sqlite
 
 RUN cat > /usr/local/etc/php/conf.d/ardoise.ini <<'INI'
@@ -50,12 +49,15 @@ memory_limit=256M
 expose_php=0
 INI
 
-# nginx et supervisord sans privilèges : tout tourne sous www-data, port 8080
+# Nginx écoute sur 8080 et écrit ses logs dans stdout/stderr.
+# Les répertoires temporaires sont placés dans /tmp pour éviter les problèmes de permissions.
 RUN rm -f /etc/nginx/nginx.conf && cat > /etc/nginx/nginx.conf <<'NGINX'
 pid /tmp/nginx.pid;
 worker_processes auto;
 error_log /dev/stderr warn;
-events { worker_connections 1024; }
+events {
+    worker_connections 1024;
+}
 http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
@@ -70,6 +72,8 @@ http {
     include /etc/nginx/http.d/*.conf;
 }
 NGINX
+
+# Supervisor lance PHP-FPM et Nginx sans privilèges root.
 RUN rm -f /etc/supervisord.conf && cat > /etc/supervisord.conf <<'SUP'
 [supervisord]
 nodaemon=true
@@ -87,7 +91,7 @@ stderr_logfile_maxbytes=0
 autorestart=true
 
 [program:nginx]
-command=nginx -g "daemon off;"
+command=nginx -e /dev/stderr -g "daemon off;"
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
@@ -105,6 +109,8 @@ COPY --from=node --chown=www-data:www-data /app/public/build ./public/build
 
 RUN mkdir -p storage/app/public storage/framework/cache storage/framework/sessions \
         storage/framework/views storage/logs bootstrap/cache database/tenants \
+        /tmp/nginx-body /tmp/nginx-fastcgi /tmp/nginx-proxy \
+        /tmp/nginx-uwsgi /tmp/nginx-scgi \
     && chown -R www-data:www-data storage bootstrap/cache database \
     && php artisan package:discover --ansi \
     && php artisan storage:link --force \
@@ -115,3 +121,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
     CMD wget -q -O /dev/null http://127.0.0.1:8080/up || exit 1
 CMD ["supervisord", "-c", "/etc/supervisord.conf"]
+
