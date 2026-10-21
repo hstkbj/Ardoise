@@ -26,14 +26,18 @@ RUN composer dump-autoload --no-dev --optimize --no-scripts --ignore-platform-re
 FROM php:8.4-fpm-alpine AS app
 
 # mariadb-client fournit mysqldump (backup:run) ; gzip pour les .sql.gz
+# pdo_sqlite et sqlite3 sont déjà compilés dans l'image php officielle
 RUN apk add --no-cache nginx supervisor mariadb-client gzip \
         icu-libs libzip libpng libjpeg-turbo freetype \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev libzip-dev libpng-dev \
         libjpeg-turbo-dev freetype-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" pdo_mysql pdo_sqlite intl zip gd bcmath opcache \
+    && docker-php-ext-install -j"$(nproc)" pdo_mysql intl zip gd bcmath opcache \
     && apk del .build-deps \
     && printf '[client]\nskip-ssl\n' > /etc/my.cnf.d/ardoise.cnf
+
+# Vérifie que SQLite est bien présent (le build échoue clairement sinon)
+RUN php -m | grep -i pdo_sqlite
 
 RUN cat > /usr/local/etc/php/conf.d/ardoise.ini <<'INI'
 opcache.enable=1
