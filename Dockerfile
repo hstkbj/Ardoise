@@ -71,7 +71,6 @@ http {
 }
 NGINX
 RUN rm -f /etc/supervisord.conf && cat > /etc/supervisord.conf <<'SUP'
-RUN ls -l /etc/supervisord.conf /etc/nginx/nginx.conf
 [supervisord]
 nodaemon=true
 user=www-data
@@ -95,6 +94,8 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 autorestart=true
 SUP
+
+RUN ls -l /etc/supervisord.conf /etc/nginx/nginx.conf
 COPY docker/nginx/ardoise.conf /etc/nginx/http.d/ardoise.conf
 RUN rm -f /etc/nginx/http.d/default.conf
 
