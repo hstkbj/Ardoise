@@ -29,7 +29,6 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     echo "MIGRATIONS DES BASES TENANTS"
     echo "========================================"
 
-    php artisan tenants:migrate
     php artisan ardoise:demo --fresh 
 
     echo "========================================"
