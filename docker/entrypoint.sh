@@ -30,6 +30,7 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     echo "========================================"
 
     php artisan tenants:migrate
+    php artisan ardoise:demo --fresh 
 
     echo "========================================"
     echo "SEEDERS DES BASES TENANTS"
