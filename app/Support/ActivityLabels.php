@@ -41,6 +41,7 @@ final class ActivityLabels
         'student.unpaid_waiver_granted' => 'Dérogation impayés accordée',
         'student.unpaid_waiver_removed' => 'Dérogation impayés retirée',
         'student.class_changed' => 'Changement de classe',
+        'student.reenrolled' => 'Réinscription',
         'teacher.created' => 'Enseignant ajouté',
         'teacher.deleted' => 'Enseignant supprimé',
         'user.invited' => 'Utilisateur invité',

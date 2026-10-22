@@ -17,6 +17,7 @@ export const ADMIN_NAV = [
     items: [
       { label: 'Classes', to: '/admin/classes', icon: 'layers', permission: 'classes.view' },
       { label: 'Élèves', to: '/admin/students', icon: 'users', permission: 'students.view' },
+      { label: 'Réinscription', to: '/admin/students/reenrollment', icon: 'refresh', permission: 'students.update' },
       { label: 'Parents', to: '/admin/parents', icon: 'home', permission: 'parents.view' },
       { label: 'Enseignants', to: '/admin/teachers', icon: 'user', permission: 'teachers.view' },
       { label: 'Matières', to: '/admin/subjects', icon: 'book', permission: 'subjects.view' },

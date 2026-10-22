@@ -28,6 +28,7 @@ const p = {
 
   adminDashboard: () => import('@/pages/admin/DashboardPage.vue'),
   grades: () => import('@/pages/admin/GradesEntryPage.vue'),
+  reenrollment: () => import('@/pages/admin/ReenrollmentPage.vue'),
   studentShow: () => import('@/pages/admin/StudentShowPage.vue'),
   parentShow: () => import('@/pages/admin/ParentShowPage.vue'),
   teacherShow: () => import('@/pages/admin/TeacherShowPage.vue'),
@@ -88,6 +89,7 @@ const routes = [
       ...resourceRoutes('schools', 'schools', { base: `${A}/schools`, permission: 'schools' }),
       ...resourceRoutes('academic-years', 'academic-years', { base: `${A}/academic-years`, permission: 'academic_years', only: ['index', 'create', 'edit'] }),
       ...resourceRoutes('classes', 'classes', { base: `${A}/classes`, permission: 'classes' }),
+      { path: 'students/reenrollment', component: p.reenrollment, meta: { permission: 'students.update', title: 'Réinscription' } },
       ...resourceRoutes('students', 'students', { base: `${A}/students`, permission: 'students', show: p.studentShow }),
       ...resourceRoutes('parents', 'parents', { base: `${A}/parents`, permission: 'parents', show: p.parentShow }),
       ...resourceRoutes('teachers', 'teachers', { base: `${A}/teachers`, permission: 'teachers', show: p.teacherShow }),

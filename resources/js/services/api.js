@@ -81,6 +81,13 @@ export const parentsApi = {
   regenerateCode: (id) => http.post(`/parents/${id}/regenerate-code`).then(data),
 };
 
+export const reenrollmentApi = {
+  /** GET /reenrollment — élèves à réinscrire { year, fees_defined, students: [{ student_id, from_class, suggested_class_id… }] } */
+  pending: (params) => http.get('/reenrollment', { params }).then(data),
+  /** POST /reenrollment { items: [{ student_id, class_id }] } */
+  submit: (items) => http.post('/reenrollment', { items }).then((r) => r.data),
+};
+
 export const classesApi = {
   syncSubjects: (id, subjects) => http.put(`/classes/${id}/subjects`, { subjects }).then(data),
 };

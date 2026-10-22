@@ -172,6 +172,9 @@ Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'ac
 
         Route::get('activity-log', [Tenant\ActivityLogController::class, 'index']);
 
+        Route::get('reenrollment', [Tenant\ReenrollmentController::class, 'index']);
+        Route::post('reenrollment', [Tenant\ReenrollmentController::class, 'store']);
+
         Route::post('students/bulk/{action}', [Tenant\StudentController::class, 'bulk']);
         Route::post('students/{student}/{action}', [Tenant\StudentController::class, 'action'])->where('action', 'archive|transfer|change-class|restore|waive|unwaive');
         Route::apiResource('students', Tenant\StudentController::class);
