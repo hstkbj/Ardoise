@@ -143,7 +143,7 @@ const title = computed(() => (isEdit ? `Modifier ${item.value?.[res.titleField] 
         <h2 class="card-title">{{ s.title }}</h2>
         <p v-if="s.description" class="mt-1 text-sm text-muted">{{ s.description }}</p>
         <div class="mt-5 grid gap-4 sm:grid-cols-2">
-          <FormField v-for="f in s.fields" :key="f.key" v-model="values[f.key]" :field="f" :error="errors[f.key]" />
+          <FormField v-for="f in s.fields" :key="f.key" v-model="values[f.key]" :field="f" :context="values" :error="errors[f.key]" />
         </div>
       </section>
       <div class="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-line bg-ground/95 px-1 py-4 backdrop-blur">

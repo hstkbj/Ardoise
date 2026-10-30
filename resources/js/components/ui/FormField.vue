@@ -1,17 +1,30 @@
 <script setup>
 /** Champ de formulaire piloté par configuration (voir config/resources.js). */
-import { computed, useId } from 'vue';
+import { computed, useId, watch } from 'vue';
 import { OPTIONS } from '@/config/options';
 
 const props = defineProps({
   field: { type: Object, required: true },
   error: { type: String, default: '' },
+  /** Valeurs du formulaire : sert aux champs qui dépendent d'un autre (field.dependsOn). */
+  context: { type: Object, default: () => ({}) },
 });
 const model = defineModel();
 const id = useId();
 
 const type = computed(() => props.field.type || 'text');
-const options = computed(() => props.field.options || OPTIONS[props.field.optionsKey] || []);
+const options = computed(() => {
+  const all = props.field.options || OPTIONS[props.field.optionsKey] || [];
+  const dep = props.field.dependsOn;
+
+  // Liste liée à un autre champ (ex. matières de la classe choisie) : vide tant qu'il n'est pas renseigné
+  return dep ? all.filter((o) => props.context[dep] !== '' && props.context[dep] != null && String(o[dep]) === String(props.context[dep])) : all;
+});
+
+// Le choix est réinitialisé quand le champ dont il dépend change
+watch(() => props.context[props.field.dependsOn], (now, before) => {
+  if (props.field.dependsOn && before !== '' && before != null && String(now) !== String(before)) model.value = '';
+});
 const describedBy = computed(() => [props.field.hint ? `${id}-hint` : null, props.error ? `${id}-err` : null].filter(Boolean).join(' ') || undefined);
 
 function toggleValue(value) {
@@ -54,7 +67,7 @@ function onFile(e) {
       <label :for="id" class="label">{{ field.label }}<span v-if="field.required" class="text-danger-600"> *</span></label>
 
       <select v-if="type === 'select'" :id="id" v-model="model" class="input" :aria-invalid="!!error" :aria-describedby="describedBy" :required="field.required">
-        <option value="">Choisir…</option>
+        <option value="">{{ field.dependsOn && !options.length ? (field.emptyLabel || 'Aucun choix disponible') : 'Choisir…' }}</option>
         <option v-for="o in options" :key="o.value" :value="o.value">{{ o.label }}</option>
       </select>
 

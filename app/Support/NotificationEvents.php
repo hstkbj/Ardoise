@@ -23,6 +23,8 @@ final class NotificationEvents
         'report_card.published' => ['label' => 'Bulletin publié', 'group' => 'Pédagogie', 'type' => 'report_card', 'recipients' => ['parents'], 'channels' => ['in_app', 'push', 'email', 'sms']],
         'homework.published' => ['label' => 'Nouveau devoir', 'group' => 'Pédagogie', 'type' => 'homework', 'recipients' => ['parents'], 'channels' => ['in_app', 'push']],
         'payment.received' => ['label' => 'Paiement encaissé (reçu au parent)', 'group' => 'Finances', 'type' => 'payment', 'recipients' => ['parents'], 'channels' => ['in_app', 'push', 'email']],
+        'payment.due_reminder' => ['label' => 'Échéance de paiement à venir', 'group' => 'Finances', 'type' => 'payment', 'recipients' => ['parents'], 'channels' => ['in_app', 'push']],
+        'payment.overdue' => ['label' => 'Échéance de paiement en retard', 'group' => 'Finances', 'type' => 'payment', 'recipients' => ['parents'], 'channels' => ['in_app', 'push']],
         'payment.online_received' => ['label' => 'Paiement en ligne reçu (FedaPay)', 'group' => 'Finances', 'type' => 'payment', 'recipients' => ['accountant'], 'channels' => ['in_app']],
         'payment.online_pending' => ['label' => 'Paiement à confirmer par la comptabilité', 'group' => 'Finances', 'type' => 'payment', 'recipients' => ['accountant', 'school_admin'], 'channels' => ['in_app']],
         'document.requested' => ['label' => 'Demande de document d’un parent', 'group' => 'Secrétariat', 'type' => 'document', 'recipients' => ['secretary', 'school_admin'], 'channels' => ['in_app', 'email']],

@@ -4,12 +4,12 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AssessmentResource;
+use App\Models\Tenant\AcademicYear;
 use App\Models\Tenant\ActivityLog;
 use App\Models\Tenant\Assessment;
 use App\Models\Tenant\ClassRoom;
 use App\Models\Tenant\ClassSubject;
 use App\Models\Tenant\Enrollment;
-use App\Models\Tenant\Subject;
 use App\Models\Tenant\Term;
 use App\Services\GradeService;
 use App\Services\Imports\GradeImport;
@@ -202,12 +202,14 @@ class AssessmentController extends Controller
         ]);
 
         $class = ClassRoom::findOrFail($data['class_id']);
-        \App\Models\Tenant\AcademicYear::assertOpen();
+        AcademicYear::assertOpen();
 
-        $classSubject = ClassSubject::firstOrCreate(
-            ['class_room_id' => $class->id, 'subject_id' => $data['subject_id']],
-            ['teacher_id' => $this->teacherId(), 'coefficient' => Subject::find($data['subject_id'])?->default_coefficient ?? 1],
-        );
+        // La matière doit être affectée à la classe (« Matières et enseignants » de la classe) : on n'en crée pas ici
+        $classSubject = ClassSubject::where('class_room_id', $class->id)->where('subject_id', $data['subject_id'])->first();
+
+        if (! $classSubject) {
+            throw ValidationException::withMessages(['subject_id' => 'Cette matière n’est pas affectée à la classe.']);
+        }
 
         if (($teacherId = $this->teacherId()) && (int) $classSubject->teacher_id !== $teacherId) {
             throw ValidationException::withMessages(['subject_id' => 'Vous n’enseignez pas cette matière dans cette classe.']);

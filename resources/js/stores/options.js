@@ -14,7 +14,7 @@ export const useOptionsStore = defineStore('options', () => {
   async function load(force = false) {
     if (loaded.value && !force) return;
     const data = await optionsApi.all();
-    ['schools', 'academicYears', 'terms', 'levels', 'classes', 'subjects', 'teachers', 'students', 'fees', 'roles'].forEach((key) => {
+    ['schools', 'academicYears', 'terms', 'levels', 'classes', 'classSubjects', 'subjects', 'teachers', 'students', 'fees', 'roles'].forEach((key) => {
       OPTIONS[key] = data[key] ?? [];
     });
     current.academicYear = data.currentAcademicYear;

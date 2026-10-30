@@ -12,9 +12,11 @@ use App\Models\Tenant\Setting;
 use App\Models\Tenant\Student;
 use App\Services\PaymentService;
 use App\Support\ListQuery;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Écran « Paiements » : une ligne par échéance (payée, partielle, en attente, en retard).
@@ -42,6 +44,12 @@ class PaymentController extends Controller
                 'class_id' => fn ($q, $v) => $q->whereHas('student.currentEnrollment', fn ($e) => $e->where('class_room_id', $v)),
                 'academic_year_id' => fn ($q) => $q,
                 'has_pending' => fn ($q, $v) => $q->whereHas('payments', fn ($p) => $p->where('status', 'pending')),
+                'due_period' => fn ($q, $v) => match ($v) {
+                    'upcoming' => $q->where('status', '!=', 'paid')->whereDate('due_date', '>=', now()->toDateString())->whereDate('due_date', '<=', now()->addDays(30)->toDateString()),
+                    'today' => $q->where('status', '!=', 'paid')->whereDate('due_date', now()->toDateString()),
+                    'overdue' => $q->where('status', '!=', 'paid')->whereDate('due_date', '<', now()->toDateString()),
+                    default => $q,
+                },
             ],
             sorts: ['paid_at' => 'last_paid_at', 'amount' => 'amount', 'due_date' => 'due_date', 'reference' => 'last_paid_at'],
             default: '-paid_at',
@@ -114,14 +122,20 @@ class PaymentController extends Controller
         $expected = (int) (clone $base)->sum('amount');
         $collected = (int) (clone $base)->sum('paid_amount');
         $overdue = (clone $base)->where('status', '!=', 'paid')->whereDate('due_date', '<', now()->subDays($lateDays)->toDateString());
+        $dueSoon = (clone $base)->where('status', '!=', 'paid')->whereDate('due_date', '>=', now()->toDateString())->whereDate('due_date', '<=', now()->addDays(30)->toDateString());
+        $overdueAll = (clone $base)->where('status', '!=', 'paid')->whereDate('due_date', '<', now()->toDateString());
 
         return response()->json(['data' => [
             'expected' => $expected,
             'collected' => $collected,
             'remaining' => $expected - $collected,
-            'pending' => (int) (clone $base)->where('status', '!=', 'paid')->sum(\Illuminate\Support\Facades\DB::raw('amount - paid_amount')),
+            'due_soon_amount' => (int) (clone $dueSoon)->sum(DB::raw('amount - paid_amount')),
+            'due_soon_count' => (int) (clone $dueSoon)->count(),
+            'overdue_amount' => (int) (clone $overdueAll)->sum(DB::raw('amount - paid_amount')),
+            'overdue_count' => (int) (clone $overdueAll)->count(),
+            'pending' => (int) (clone $base)->where('status', '!=', 'paid')->sum(DB::raw('amount - paid_amount')),
             'late_families' => (clone $overdue)->distinct()->count('student_id'),
-            'late_amount' => (int) (clone $overdue)->sum(\Illuminate\Support\Facades\DB::raw('amount - paid_amount')),
+            'late_amount' => (int) (clone $overdue)->sum(DB::raw('amount - paid_amount')),
             'pending_online' => Payment::where('status', 'pending')->count(),
         ]]);
     }
@@ -143,8 +157,8 @@ class PaymentController extends Controller
             'contact' => Setting::section('contact'),
         ])->render();
 
-        if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
-            return \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a5')->download('recu-'.$record->reference.'.pdf');
+        if (class_exists(Pdf::class)) {
+            return Pdf::loadHTML($html)->setPaper('a5')->download('recu-'.$record->reference.'.pdf');
         }
 
         return response($html)->header('Content-Type', 'text/html; charset=UTF-8');

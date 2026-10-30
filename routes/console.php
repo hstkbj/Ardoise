@@ -11,6 +11,9 @@ Schedule::command('subscriptions:check')->dailyAt('08:00');
 // Paiements FedaPay restés « en attente » (webhook perdu) : relecture auprès de l'API
 Schedule::command('payments:sync-fedapay')->everyFifteenMinutes()->withoutOverlapping();
 
+// Rappels aux parents : trois jours avant l'échéance et une fois après son dépassement
+Schedule::command('payments:send-reminders')->dailyAt('08:00')->withoutOverlapping();
+
 // Nettoyage des jetons mobiles expirés dans chaque école
 Schedule::command('tenants:prune-tokens')->weekly();
 

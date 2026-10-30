@@ -11,6 +11,7 @@ use App\Support\ListQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class HomeworkController extends Controller
 {
@@ -121,6 +122,16 @@ class HomeworkController extends Controller
 
         $ids = $this->teacherClassIds();
         abort_if($ids !== null && ! in_array((int) $data['class_id'], $ids, true), 403, 'Vous n’intervenez pas dans cette classe.');
+
+        $classSubject = ClassSubject::where('class_room_id', $data['class_id'])->where('subject_id', $data['subject_id'])->first();
+
+        if (! $classSubject) {
+            throw ValidationException::withMessages(['subject_id' => 'Cette matière n’est pas affectée à la classe.']);
+        }
+
+        if (($teacherId = $this->teacherId()) && (int) $classSubject->teacher_id !== $teacherId) {
+            throw ValidationException::withMessages(['subject_id' => 'Vous n’enseignez pas cette matière dans cette classe.']);
+        }
 
         return [
             'title' => $data['title'],

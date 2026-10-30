@@ -8,6 +8,7 @@ import { reactive } from 'vue';
 export const OPTIONS = reactive({
   schools: [],
   classes: [],
+  classSubjects: [], // matières affectées à chaque classe : { class_id, value, label }
   academicYears: [],
   terms: [],
   subjects: [],
