@@ -1,13 +1,13 @@
 <script setup>
 /** Emploi du temps par classe (ou de l'enseignant connecté). */
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/ui/PageHeader.vue';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import LoadingState from '@/components/ui/LoadingState.vue';
 import ErrorState from '@/components/ui/ErrorState.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import TimetableGrid from '@/components/domain/TimetableGrid.vue';
-import { timetableApi } from '@/services/api';
+import { classesApi, timetableApi } from '@/services/api';
 import { OPTIONS } from '@/config/options';
 import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
@@ -34,8 +34,26 @@ async function load() {
     loading.value = false;
   }
 }
-watch(classId, load);
+// Matières affectées à la classe (et enseignants qui les enseignent) : seules elles sont proposées
+const classSubjects = ref([]);
+const subjectChoices = computed(() => classSubjects.value.filter((s) => s.assigned));
+const teacherChoices = computed(() => subjectChoices.value.find((s) => String(s.subject_id) === String(form.subject_id))?.teachers ?? []);
+
+async function loadClassSubjects() {
+  classSubjects.value = !props.teacherView && classId.value ? await classesApi.subjects(classId.value).catch(() => []) : [];
+}
+
+function pickSubject() {
+  // L'enseignant de la matière dans cette classe est présélectionné
+  form.teacher_id = subjectChoices.value.find((s) => String(s.subject_id) === String(form.subject_id))?.teacher_id ?? '';
+}
+
+watch(classId, () => {
+  load();
+  loadClassSubjects();
+});
 load();
+loadClassSubjects();
 
 const open = ref(false);
 const form = reactive({ subject_id: '', teacher_id: '', day: 0, start: '08:00', end: '09:00', room: '' });
@@ -83,8 +101,8 @@ async function remove(entry) {
 
     <BaseModal :open="open" title="Ajouter un cours" @close="open = false">
       <form id="tt-form" class="grid gap-4 sm:grid-cols-2" @submit.prevent="add">
-        <div class="flex flex-col gap-1"><label for="tt-subject" class="label">Matière *</label><select id="tt-subject" v-model="form.subject_id" required class="input"><option value="" disabled>Choisir</option><option v-for="s in OPTIONS.subjects" :key="s.value" :value="s.value">{{ s.label }}</option></select></div>
-        <div class="flex flex-col gap-1"><label for="tt-teacher" class="label">Enseignant</label><select id="tt-teacher" v-model="form.teacher_id" class="input"><option value="">—</option><option v-for="t in OPTIONS.teachers" :key="t.value" :value="t.value">{{ t.label }}</option></select></div>
+        <div class="flex flex-col gap-1"><label for="tt-subject" class="label">Matière *</label><select id="tt-subject" v-model="form.subject_id" required class="input" @change="pickSubject"><option value="" disabled>Choisir</option><option v-for="s in subjectChoices" :key="s.subject_id" :value="s.subject_id">{{ s.name }}</option></select><p v-if="!subjectChoices.length" class="text-xs text-warning">Aucune matière n’est affectée à cette classe. <RouterLink :to="`/admin/classes/${classId}/subjects`" class="link">Affecter des matières</RouterLink></p></div>
+        <div class="flex flex-col gap-1"><label for="tt-teacher" class="label">Enseignant</label><select id="tt-teacher" v-model="form.teacher_id" class="input"><option value="">—</option><option v-for="t in teacherChoices" :key="t.value" :value="t.value">{{ t.label }}</option></select></div>
         <div class="flex flex-col gap-1"><label for="tt-day" class="label">Jour</label><select id="tt-day" v-model.number="form.day" class="input"><option v-for="(d, i) in DAYS" :key="d" :value="i">{{ d }}</option></select></div>
         <div class="flex flex-col gap-1"><label for="tt-room" class="label">Salle</label><input id="tt-room" v-model="form.room" class="input" /></div>
         <div class="flex flex-col gap-1"><label for="tt-start" class="label">Début</label><input id="tt-start" v-model="form.start" type="time" required class="input" /></div>

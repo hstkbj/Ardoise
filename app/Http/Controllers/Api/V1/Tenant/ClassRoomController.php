@@ -12,6 +12,7 @@ use App\Support\ListQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ClassRoomController extends Controller
 {
@@ -72,6 +73,45 @@ class ClassRoomController extends Controller
         return response()->json(['message' => 'Classe supprimée.']);
     }
 
+    /**
+     * Matières affectables à la classe : GET /classes/{id}/subjects
+     * Chaque matière indique si elle est affectée, son coefficient, l'enseignant retenu
+     * et la liste des enseignants qui enseignent cette matière (pour le choix).
+     */
+    public function subjects(ClassRoom $class): JsonResponse
+    {
+        $this->authorize('classes.view');
+        $this->ensureVisible($class);
+
+        $assigned = $class->classSubjects()->get()->keyBy('subject_id');
+
+        $rows = Subject::with(['teachers' => fn ($q) => $q->where('teachers.status', '!=', 'inactive')])
+            ->where(fn ($q) => $q->where('status', 'active')->orWhereIn('id', $assigned->keys()))
+            ->orderBy('name')->get()
+            ->map(function (Subject $subject) use ($assigned) {
+                $cs = $assigned->get($subject->id);
+                $teachers = $subject->teachers->map(fn ($t) => ['value' => $t->id, 'label' => $t->full_name]);
+
+                // Enseignant déjà retenu mais plus rattaché à la matière : on le garde visible
+                if ($cs?->teacher_id && ! $teachers->contains('value', $cs->teacher_id) && $cs->teacher) {
+                    $teachers->push(['value' => $cs->teacher_id, 'label' => $cs->teacher->full_name]);
+                }
+
+                return [
+                    'subject_id' => $subject->id,
+                    'name' => $subject->name,
+                    'code' => $subject->code,
+                    'assigned' => (bool) $cs,
+                    'coefficient' => $cs?->coefficient ?? $subject->default_coefficient,
+                    'teacher_id' => $cs?->teacher_id,
+                    'teachers' => $teachers->values(),
+                ];
+            })
+            ->sortByDesc('assigned')->values();
+
+        return response()->json(['data' => $rows]);
+    }
+
     /** Matières de la classe : PUT /classes/{id}/subjects { subjects: [{ subject_id, teacher_id, coefficient }] } */
     public function syncSubjects(Request $request, ClassRoom $class): ClassRoomResource
     {
@@ -83,6 +123,8 @@ class ClassRoomController extends Controller
             'subjects.*.teacher_id' => ['nullable', 'integer', 'exists:tenant.teachers,id'],
             'subjects.*.coefficient' => ['required', 'numeric', 'min:0', 'max:20'],
         ]);
+
+        $this->ensureTeachersTeachTheirSubject($class, $data['subjects']);
 
         $keep = [];
 
@@ -98,6 +140,27 @@ class ClassRoomController extends Controller
         $class->classSubjects()->whereNotIn('id', $keep)->whereDoesntHave('assessments')->delete();
 
         return $this->present($class->id);
+    }
+
+    /** L'enseignant choisi pour une matière doit faire partie de ceux qui l'enseignent. */
+    protected function ensureTeachersTeachTheirSubject(ClassRoom $class, array $rows): void
+    {
+        $current = $class->classSubjects()->pluck('teacher_id', 'subject_id');
+
+        foreach ($rows as $i => $row) {
+            $teacherId = $row['teacher_id'] ?? null;
+
+            if (! $teacherId || (int) $current->get($row['subject_id']) === (int) $teacherId) {
+                continue; // aucun enseignant, ou affectation déjà en place
+            }
+
+            $subject = Subject::findOrFail($row['subject_id']);
+            $teaches = $subject->teachers()->whereKey($teacherId)->exists() || (int) $subject->teacher_id === (int) $teacherId;
+
+            if (! $teaches) {
+                throw ValidationException::withMessages(["subjects.{$i}.teacher_id" => 'Cet enseignant n’enseigne pas « '.$subject->name.' ». Rattachez d’abord la matière à l’enseignant.']);
+            }
+        }
     }
 
     /** À la création : toutes les matières actives du cycle, avec leur coefficient par défaut. */

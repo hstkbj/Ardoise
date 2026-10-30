@@ -89,6 +89,8 @@ export const reenrollmentApi = {
 };
 
 export const classesApi = {
+  /** GET /classes/{id}/subjects — matières affectables : { subject_id, name, assigned, coefficient, teacher_id, teachers: [{value,label}] } */
+  subjects: (id) => http.get(`/classes/${id}/subjects`).then(data),
   syncSubjects: (id, subjects) => http.put(`/classes/${id}/subjects`, { subjects }).then(data),
 };
 

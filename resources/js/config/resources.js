@@ -104,6 +104,7 @@ export const RESOURCES = {
     createLabel: 'Nouvelle classe',
     searchPlaceholder: 'Rechercher une classe…',
     emptyText: 'Aucune classe trouvée.',
+    rowActions: ['view', 'edit', 'subjects', 'delete'],
     titleField: 'name',
     columns: [
       { key: 'name', label: 'Classe', type: 'person', sub: 'level', sortable: true },

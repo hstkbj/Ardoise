@@ -162,6 +162,7 @@ Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'ac
         Route::post('academic-years/{academicYear}/close', [Tenant\AcademicYearController::class, 'close']);
         Route::apiResource('academic-years', Tenant\AcademicYearController::class)->parameters(['academic-years' => 'academicYear']);
 
+        Route::get('classes/{class}/subjects', [Tenant\ClassRoomController::class, 'subjects']);
         Route::put('classes/{class}/subjects', [Tenant\ClassRoomController::class, 'syncSubjects']);
         Route::apiResource('classes', Tenant\ClassRoomController::class);
 

@@ -50,6 +50,7 @@ const BASE_ACTIONS = {
   delete: { label: 'Supprimer', icon: 'trash', danger: true, perm: 'delete' },
   toggle: { label: 'Activer / désactiver', icon: 'refresh', perm: 'update' },
   grades: { label: 'Saisir les notes', icon: 'pencil' },
+  subjects: { label: 'Matières et enseignants', icon: 'book' },
   receipt: { label: 'Reçu', icon: 'printer' },
   download: { label: 'Télécharger', icon: 'download' },
   invoice: { label: 'Facture', icon: 'file' },
@@ -86,6 +87,7 @@ async function onAction(key, row) {
     switch (key) {
       case 'view': return router.push(`${props.base}/${row.id}`);
       case 'edit': return router.push(`${props.base}/${row.id}/edit`);
+      case 'subjects': return router.push(`${props.base}/${row.id}/subjects`);
       case 'grades': return router.push({ path: props.gradesPath, query: { assessment: row.id } });
       case 'receipt': return openFile(paymentsApi.receiptPath(row.id));
       case 'download': return openFile(`/documents/${row.id}/download`);

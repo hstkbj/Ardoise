@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\ClassRoom;
+use App\Models\Tenant\ClassSubject;
+use App\Models\Tenant\Subject;
 use App\Models\Tenant\TimetableEntry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -87,6 +89,19 @@ class TimetableController extends Controller
             'room' => ['nullable', 'string', 'max:50'],
         ]);
 
+        // Le cours doit correspondre à une matière affectée à la classe ; l'enseignant en découle
+        $classSubject = ClassSubject::where('class_room_id', $data['class_id'])->where('subject_id', $data['subject_id'])->first();
+
+        if (! $classSubject) {
+            throw ValidationException::withMessages(['subject_id' => 'Cette matière n’est pas affectée à la classe. Affectez-la d’abord dans « Matières et enseignants » de la classe.']);
+        }
+
+        $teacherId = $data['teacher_id'] ?? $classSubject->teacher_id;
+
+        if ($teacherId && (int) $teacherId !== (int) $classSubject->teacher_id && ! Subject::findOrFail($data['subject_id'])->teachers()->whereKey($teacherId)->exists()) {
+            throw ValidationException::withMessages(['teacher_id' => 'Cet enseignant n’enseigne pas cette matière.']);
+        }
+
         $overlap = fn ($q) => $q->where('day_of_week', $data['day'])
             ->where('starts_at', '<', $data['end'])
             ->where('ends_at', '>', $data['start'])
@@ -96,7 +111,7 @@ class TimetableController extends Controller
             throw ValidationException::withMessages(['start' => 'La classe a déjà un cours sur ce créneau.']);
         }
 
-        if (! empty($data['teacher_id']) && TimetableEntry::where('teacher_id', $data['teacher_id'])->where($overlap)->exists()) {
+        if ($teacherId && TimetableEntry::where('teacher_id', $teacherId)->where($overlap)->exists()) {
             throw ValidationException::withMessages(['teacher_id' => 'Cet enseignant a déjà un cours sur ce créneau.']);
         }
 
@@ -107,7 +122,7 @@ class TimetableController extends Controller
         return [
             'class_room_id' => $data['class_id'],
             'subject_id' => $data['subject_id'],
-            'teacher_id' => $data['teacher_id'] ?? null,
+            'teacher_id' => $teacherId,
             'day_of_week' => $data['day'],
             'starts_at' => $data['start'],
             'ends_at' => $data['end'],
