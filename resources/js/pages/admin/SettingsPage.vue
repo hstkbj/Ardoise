@@ -7,9 +7,8 @@ import FormField from '@/components/ui/FormField.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import LoadingState from '@/components/ui/LoadingState.vue';
 import ErrorState from '@/components/ui/ErrorState.vue';
-import ReportHeaderPreview from '@/components/domain/ReportHeaderPreview.vue';
+import ReportCardEditor from '@/components/domain/ReportCardEditor.vue';
 import { settingsApi } from '@/services/api';
-import { openFile } from '@/utils/format';
 import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
 
@@ -60,6 +59,24 @@ const SCHOOL = {
     { key: 'signatory_name', group: 'signature', label: 'Nom du signataire', placeholder: 'M. Koffi ADJOVI' },
     { key: 'signature', group: 'signature', label: 'Signature', type: 'file', accept: 'image/png,image/jpeg', hint: 'Image PNG à fond transparent de préférence.' },
     { key: 'stamp', group: 'signature', label: 'Cachet de l’école', type: 'file', accept: 'image/png,image/jpeg', hint: 'Image PNG à fond transparent de préférence.' },
+    // Éditeur de bulletin (rendu par ReportCardEditor : ces entrées servent au chargement et à l'enregistrement)
+    { key: 'design_preset', group: 'design' },
+    { key: 'accent_color', group: 'design' },
+    { key: 'font_family', group: 'design' },
+    { key: 'page_border', group: 'design' },
+    { key: 'header_align', group: 'design' },
+    { key: 'logo_size', group: 'design' },
+    { key: 'header_divider', group: 'design' },
+    { key: 'title_style', group: 'design' },
+    { key: 'student_layout', group: 'design' },
+    { key: 'student_fields', group: 'design', type: 'checkboxes' },
+    { key: 'photo_position', group: 'design' },
+    { key: 'photo_size', group: 'design' },
+    { key: 'watermark_mode', group: 'design' },
+    { key: 'watermark_image', group: 'design', type: 'file' },
+    { key: 'watermark_text', group: 'design' },
+    { key: 'watermark_opacity', group: 'design' },
+    { key: 'watermark_size', group: 'design' },
   ] },
   notifications: { label: 'Notifications', fields: [
     { key: 'absence_notify', label: 'Prévenir les parents d’une absence', type: 'select', options: [{ value: 'immediate', label: 'Immédiatement' }, { value: 'daily', label: 'Récapitulatif quotidien' }, { value: 'never', label: 'Jamais' }] },
@@ -150,11 +167,6 @@ function toggleRule(event, kind, value) {
   i === -1 ? list.push(value) : list.splice(i, 1);
 }
 // Bulletins : images enregistrées ou choisies, à retirer, et identité de l'école pour l'aperçu
-const HEADER_GROUPS = [
-  { key: 'header', title: 'En-tête du bulletin', text: 'Ce qui est imprimé en haut de chaque bulletin, au-dessus de l’identité de l’élève.' },
-  { key: 'signature', title: 'Signature et cachet', text: 'Imprimés en bas à droite du bulletin, à la place de la ligne de signature.' },
-];
-const groupFields = (group) => (sections[tab.value]?.fields || []).filter((f) => f.group === group);
 const school = ref({});
 const previews = new Map();
 function previewUrl(file) {
@@ -165,7 +177,7 @@ function imageOf(key) {
   if (typeof File !== 'undefined' && values[key] instanceof File) return previewUrl(values[key]);
   return values._remove?.includes(key) ? null : values._extra?.[key] || null;
 }
-const headerImages = computed(() => ({ second_logo: imageOf('second_logo'), signature: imageOf('signature'), stamp: imageOf('stamp') }));
+const headerImages = computed(() => ({ second_logo: imageOf('second_logo'), signature: imageOf('signature'), stamp: imageOf('stamp'), watermark_image: imageOf('watermark_image') }));
 function removeImage(key) {
   values[key] = null;
   if (!values._remove.includes(key)) values._remove.push(key);
@@ -229,7 +241,7 @@ async function save() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-4xl space-y-5">
+  <div class="mx-auto space-y-5" :class="tab === 'reports' && !platform ? 'max-w-6xl' : 'max-w-4xl'">
     <PageHeader title="Paramètres" :subtitle="platform ? 'Configuration de la plateforme.' : 'Configuration de votre école.'" />
     <TabNav v-model="tab" :tabs="tabs" />
     <LoadingState v-if="loading" variant="detail" />
@@ -270,28 +282,7 @@ async function save() {
       <fieldset v-if="sections[tab].fields.length" :disabled="readOnly" class="grid gap-4 sm:grid-cols-2">
         <FormField v-for="f in sections[tab].fields.filter((x) => !x.group)" :key="f.key" v-model="values[f.key]" :field="f.type === 'password' ? { ...f, hint: secretHint(f.key) || f.hint } : f" :error="errors[f.key]" />
       </fieldset>
-      <div v-if="tab === 'reports' && !platform" class="grid gap-6 border-t border-line-soft pt-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div class="space-y-6">
-          <fieldset v-for="g in HEADER_GROUPS" :key="g.key" :disabled="readOnly" class="space-y-4">
-            <legend class="text-base font-semibold">{{ g.title }}</legend>
-            <p class="-mt-2 text-sm text-muted">{{ g.text }}</p>
-            <div class="grid gap-4 sm:grid-cols-2">
-              <div v-for="f in groupFields(g.key)" :key="f.key" class="flex flex-col gap-2" :class="f.span === 2 ? 'sm:col-span-2' : ''">
-                <FormField v-model="values[f.key]" :field="{ ...f, span: 1 }" :error="errors[f.key]" />
-                <div v-if="f.type === 'file' && imageOf(f.key)" class="flex items-center gap-3">
-                  <img :src="imageOf(f.key)" :alt="f.label" class="size-12 rounded-lg border border-line bg-white object-contain" />
-                  <button v-if="!readOnly" type="button" class="btn btn-ghost btn-sm" @click="removeImage(f.key)"><AppIcon name="trash" class="size-4" />Retirer</button>
-                </div>
-              </div>
-            </div>
-          </fieldset>
-        </div>
-        <div class="space-y-3 lg:sticky lg:top-4 lg:self-start">
-          <p class="text-xs font-semibold tracking-wide text-subtle uppercase">Aperçu</p>
-          <ReportHeaderPreview :settings="values" :school="school" :images="headerImages" />
-          <button type="button" class="btn btn-secondary btn-sm w-full" @click="openFile('/settings/reports/preview')"><AppIcon name="file" class="size-4" />Aperçu PDF (réglages enregistrés)</button>
-        </div>
-      </div>
+      <ReportCardEditor v-if="tab === 'reports' && !platform" :values="values" :errors="errors" :school="school" :images="headerImages" :read-only="readOnly" @remove-image="removeImage" />
 
       <div v-if="!readOnly" class="flex justify-end"><button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button></div>
     </form>

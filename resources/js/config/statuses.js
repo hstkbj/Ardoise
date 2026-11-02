@@ -37,6 +37,7 @@ export const STATUSES = {
   partial: { label: 'Partiel', tone: 'info' },
   overdue: { label: 'En retard', tone: 'danger' },
   failed: { label: 'Échoué', tone: 'danger' },
+  no_fees: { label: 'Aucun frais', tone: 'neutral' },
   cancelled: { label: 'Annulé', tone: 'neutral' },
 
   // Abonnements SaaS

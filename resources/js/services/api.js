@@ -72,6 +72,10 @@ export const reportCardsApi = {
 
 export const paymentsApi = {
   summary: (params) => http.get('/payments/summary', { params }).then(data),
+  /** GET /payments/students?filter[class_id]= — élèves avec leur solde { expected, paid, remaining, status } */
+  students: (params) => http.get('/payments/students', { params }).then((r) => r.data),
+  /** GET /payments/students/{id} — { student, totals, fees: [échéances avec versements] } */
+  student: (id) => http.get(`/payments/students/${id}`).then(data),
   confirm: (recordId) => http.post(`/payments/records/${recordId}/confirm`).then((r) => r.data),
   cancel: (recordId) => http.post(`/payments/records/${recordId}/cancel`).then((r) => r.data),
   receiptPath: (lineId, recordId) => `/payments/${lineId}/receipt${recordId ? `?record=${recordId}` : ''}`,

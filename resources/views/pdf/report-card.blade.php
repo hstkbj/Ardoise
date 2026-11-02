@@ -9,6 +9,18 @@
     $rankOf = fn ($r) => $r ? $r.($r == 1 ? 'er' : 'e') : '—';
     // En-tête réglé par l'école : App\Support\ReportCardHeader
     $h = $header ?? \App\Support\ReportCardHeader::for(null, $report['school']);
+    // Options de l'éditeur de bulletin (valeurs par défaut = mise en page historique)
+    $h += ['font' => 'DejaVu Sans, Arial, sans-serif', 'border' => 'none', 'align' => 'center', 'logo_px' => 72, 'divider' => false, 'title_style' => 'band',
+        'student_layout' => 'plain', 'student_fields' => ['matricule', 'class', 'birth_date', 'term'], 'photo_position' => 'right', 'photo_w' => 66, 'photo_h' => 82, 'watermark' => null];
+    $infoCells = [
+        'matricule' => ['Matricule', $report['student']['matricule']],
+        'class' => ['Classe', $report['student']['class_name'].' ('.$report['class_size'].' élèves)'],
+        'birth_date' => ['Né(e) le', $report['student']['birth_date'] ? \Illuminate\Support\Carbon::parse($report['student']['birth_date'])->format('d/m/Y') : '—'],
+        'term' => ['Période', $report['term']],
+        'year' => ['Année scolaire', $report['academic_year']],
+    ];
+    $infoRows = collect($h['student_fields'])->filter(fn ($k) => isset($infoCells[$k]))->map(fn ($k) => $infoCells[$k])->chunk(2);
+    $photoLeft = $h['photo_position'] === 'left';
     $preview = $h['preview'] ?? false;
     $sideLogo = $h['logo'] && $h['logo_position'] === 'left';
     $hasSides = $sideLogo || $h['second_logo'];
@@ -39,27 +51,37 @@
     /* En-tête réglé par l'école (Paramètres › Bulletins) */
     table.hdr, table.hdr td, table.who, table.who td, table.who-grid td, table.sign, table.sign td { border: 0; padding: 0; margin: 0; }
     table.hdr { margin: 0; }
-    .hdr-side { width: 80px; vertical-align: middle; }
+    .doc-font { font-family: {!! $h['font'] !!}; }
+    .hdr-side { width: {{ $h['logo_px'] + 8 }}px; vertical-align: middle; }
     .hdr-side-right { text-align: right; }
-    .hdr-logo { max-width: 72px; max-height: 72px; }
-    .hdr-logo-center { display: block; margin: 3px auto; max-height: 54px; }
-    .hdr-mid { text-align: center; vertical-align: middle; padding: 0 8px; }
+    .hdr-logo { max-width: {{ $h['logo_px'] }}px; max-height: {{ $h['logo_px'] }}px; }
+    .hdr-logo-center { display: block; margin: 3px {{ $h['align'] === 'left' ? '0' : 'auto' }}; max-height: {{ (int) round($h['logo_px'] * 0.75) }}px; }
+    .hdr-mid { text-align: {{ $h['align'] }}; vertical-align: middle; padding: 0 8px; }
     .official { font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; color: #4F5560; }
     .official-first { font-weight: bold; color: #15171C; }
-    .official-rule { width: 60px; margin: 4px auto 6px; border-top: 1px solid {{ $h['color'] }}; }
+    .official-rule { width: 60px; margin: 4px {{ $h['align'] === 'left' ? '0' : 'auto' }} 6px; border-top: 1px solid {{ $h['color'] }}; }
+    .hdr-divider { margin-top: 8px; border-top: 2px solid {{ $h['color'] }}; }
     .school { font-size: 15px; font-weight: bold; text-transform: uppercase; color: {{ $h['color'] }}; margin-top: 2px; }
     .detail { font-size: 9.5px; color: #4F5560; }
     .band { margin-top: 8px; padding: 6px 10px; background: {{ $h['color'] }}; color: #FFFFFF; }
     .band-title { font-size: 13px; font-weight: bold; text-transform: uppercase; }
     .band-term { float: right; font-size: 10px; padding-top: 2px; }
+    .band-line { background: none; color: {{ $h['color'] }}; padding: 5px 0; border-bottom: 2px solid {{ $h['color'] }}; }
+    .band-plain { background: none; color: #15171C; padding: 5px 0; border-top: 1px solid #D6D6D0; border-bottom: 1px solid #D6D6D0; }
+    table.who-card { border: 1px solid #D6D6D0; background: #F8F8F6; }
+    table.who-card td.who-main, table.who-card td.photo-cell { padding: 7px 10px; }
+    td.photo-cell-left { text-align: left; }
+    .page-border { position: fixed; top: -8mm; left: -8mm; right: -8mm; bottom: -6mm; border: {{ $h['border'] === 'double' ? '4px double' : '1px solid' }} {{ $h['color'] }}; }
+    .watermark { position: fixed; top: 28%; z-index: -1; }
+    .watermark-text { position: fixed; top: 42%; left: 0; width: 100%; text-align: center; font-size: 64px; font-weight: bold; color: {{ $h['color'] }}; text-transform: uppercase; z-index: -1; }
     table.who { margin-top: 8px; }
     table.who > tbody > tr > td, table.who > tr > td { vertical-align: top; }
     .who-name { font-size: 13px; font-weight: bold; margin-bottom: 4px; }
     table.who-grid { margin-top: 0; width: auto; }
     table.who-grid td { padding: 1px 14px 1px 0; }
-    .photo-cell { width: 72px; text-align: right; }
-    .photo { width: 66px; height: 82px; border: 1px solid #D6D6D0; }
-    .photo-empty { display: inline-block; background: #F1F1EE; color: #8A8F98; font-size: 8px; text-align: center; height: 46px; padding-top: 36px; }
+    .photo-cell { width: {{ $h['photo_w'] + 6 }}px; text-align: right; }
+    .photo { width: {{ $h['photo_w'] }}px; height: {{ $h['photo_h'] }}px; border: 1px solid #D6D6D0; }
+    .photo-empty { display: inline-block; background: #F1F1EE; color: #8A8F98; font-size: 8px; text-align: center; height: {{ max(20, $h['photo_h'] - 36) }}px; padding-top: 36px; }
     table.sign { margin-top: 16px; page-break-inside: avoid; }
     table.sign td { width: 50%; vertical-align: top; }
     .sign-right { text-align: center; }
@@ -74,7 +96,15 @@
 </style>
 </head>
 <body>
-<table class="hdr">
+@if ($h['border'] !== 'none')<div class="page-border"></div>@endif
+@if ($h['watermark'])
+    @if ($h['watermark']['type'] === 'image')
+        <img src="{{ $h['watermark']['src'] }}" class="watermark" style="width: {{ $h['watermark']['width'] }}%; left: {{ (100 - $h['watermark']['width']) / 2 }}%; opacity: {{ $h['watermark']['opacity'] }};" alt="">
+    @else
+        <div class="watermark-text" style="opacity: {{ $h['watermark']['opacity'] }};">{{ $h['watermark']['text'] }}</div>
+    @endif
+@endif
+<table class="hdr doc-font">
     <tr>
         @if ($hasSides)<td class="hdr-side">@if ($sideLogo)<img src="{{ $h['logo'] }}" class="hdr-logo" alt="">@endif</td>@endif
         <td class="hdr-mid">
@@ -91,25 +121,28 @@
         @if ($hasSides)<td class="hdr-side hdr-side-right">@if ($h['second_logo'])<img src="{{ $h['second_logo'] }}" class="hdr-logo" alt="">@endif</td>@endif
     </tr>
 </table>
+@if ($h['divider'])<div class="hdr-divider"></div>@endif
 
-<div class="band">
+<div class="band band-{{ $h['title_style'] }} doc-font">
     <span class="band-title">{{ $h['title'] }}</span>
     <span class="band-term">{{ $report['term'] }} · Année scolaire {{ $report['academic_year'] }}</span>
 </div>
 
-<table class="who">
+<table class="who doc-font {{ $h['student_layout'] === 'card' ? 'who-card' : '' }}">
     <tr>
-        <td>
+        @if ($photoLeft && ($h['photo'] || ($h['show_photo'] && $preview)))
+            <td class="photo-cell photo-cell-left">@if ($h['photo'])<img src="{{ $h['photo'] }}" class="photo" alt="">@else<div class="photo photo-empty">Photo de l’élève</div>@endif</td>
+        @endif
+        <td class="who-main">
             <div class="who-name">{{ $report['student']['full_name'] }}</div>
             <table class="who-grid">
-                <tr><td class="muted">Matricule</td><td>{{ $report['student']['matricule'] }}</td><td class="muted">Classe</td><td>{{ $report['student']['class_name'] }} ({{ $report['class_size'] }} élèves)</td></tr>
-                <tr><td class="muted">Né(e) le</td><td>{{ $report['student']['birth_date'] ? \Illuminate\Support\Carbon::parse($report['student']['birth_date'])->format('d/m/Y') : '—' }}</td><td class="muted">Période</td><td>{{ $report['term'] }}</td></tr>
+                @foreach ($infoRows as $row)
+                    <tr>@foreach ($row as [$label, $value])<td class="muted">{{ $label }}</td><td>{{ $value }}</td>@endforeach</tr>
+                @endforeach
             </table>
         </td>
-        @if ($h['photo'])
-            <td class="photo-cell"><img src="{{ $h['photo'] }}" class="photo" alt=""></td>
-        @elseif ($h['show_photo'] && $preview)
-            <td class="photo-cell"><div class="photo photo-empty">Photo de l’élève</div></td>
+        @if (! $photoLeft && ($h['photo'] || ($h['show_photo'] && $preview)))
+            <td class="photo-cell">@if ($h['photo'])<img src="{{ $h['photo'] }}" class="photo" alt="">@else<div class="photo photo-empty">Photo de l’élève</div>@endif</td>
         @endif
     </tr>
 </table>
