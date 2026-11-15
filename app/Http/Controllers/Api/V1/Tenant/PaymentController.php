@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PaymentLineResource;
+use App\Http\Resources\StudentBalanceResource;
 use App\Models\Tenant\AcademicYear;
 use App\Models\Tenant\Fee;
 use App\Models\Tenant\FeeAssignment;
@@ -54,6 +55,75 @@ class PaymentController extends Controller
             sorts: ['paid_at' => 'last_paid_at', 'amount' => 'amount', 'due_date' => 'due_date', 'reference' => 'last_paid_at'],
             default: '-paid_at',
         ));
+    }
+
+    /**
+     * GET /payments/students?class_id=&search=&status= : les élèves d'une classe avec leur solde de frais.
+     * status : late (en retard) | remaining (reste à payer) | settled (soldé) | none (aucun frais)
+     */
+    public function students(Request $request)
+    {
+        $this->authorize('payments.view');
+
+        $feeIds = Fee::where('academic_year_id', AcademicYear::current()?->id)->pluck('id');
+        $today = now()->toDateString();
+        $of = fn ($query) => $query->from('fee_assignments')->whereColumn('fee_assignments.student_id', 'students.id')->whereIn('fee_assignments.fee_id', $feeIds);
+        $sub = fn (string $expression) => $of(DB::connection('tenant')->query())->selectRaw($expression);
+
+        $query = Student::query()
+            ->select('students.*')
+            ->addSelect([
+                'expected' => $sub('coalesce(sum(fee_assignments.amount), 0)'),
+                'paid' => $sub('coalesce(sum(fee_assignments.paid_amount), 0)'),
+                'overdue_count' => $sub('count(*)')->where('fee_assignments.status', '!=', 'paid')->whereDate('fee_assignments.due_date', '<', $today),
+            ])
+            ->with('currentEnrollment.classRoom')
+            ->where('students.status', 'active');
+
+        return StudentBalanceResource::collection(ListQuery::paginate($query, $request,
+            search: ['first_name', 'last_name', 'matricule', fn ($q, $t) => $q->whereRaw('('.ListQuery::concat('tenant', 'last_name', 'first_name').') like ?', ["%{$t}%"])],
+            filters: [
+                'class_id' => fn ($q, $v) => $q->whereHas('currentEnrollment', fn ($e) => $e->where('class_room_id', $v)),
+                'status' => fn ($q, $v) => match ($v) {
+                    'late' => $q->whereExists(fn ($e) => $of($e)->where('fee_assignments.status', '!=', 'paid')->whereDate('fee_assignments.due_date', '<', $today)),
+                    'remaining' => $q->whereExists(fn ($e) => $of($e)->where('fee_assignments.status', '!=', 'paid')),
+                    'settled' => $q->whereExists(fn ($e) => $of($e))->whereNotExists(fn ($e) => $of($e)->where('fee_assignments.status', '!=', 'paid')),
+                    'none' => $q->whereNotExists(fn ($e) => $of($e)),
+                    default => $q,
+                },
+            ],
+            sorts: ['name' => fn ($q, $dir) => $q->orderBy('students.last_name', $dir)->orderBy('students.first_name', $dir)],
+            default: 'name',
+        ));
+    }
+
+    /** GET /payments/students/{student} : frais de l'année d'un élève, ce qui est payé et ce qui reste. */
+    public function student(Student $student): JsonResponse
+    {
+        $this->authorize('payments.view');
+
+        $yearId = AcademicYear::current()?->id;
+        $lines = FeeAssignment::with(['fee', 'student.currentEnrollment.classRoom', 'lastPayment', 'payments.receiver'])
+            ->where('student_id', $student->id)
+            ->whereHas('fee', fn ($q) => $q->where('academic_year_id', $yearId))
+            ->orderBy('due_date')->get();
+
+        $expected = (int) $lines->sum('amount');
+        $paid = (int) $lines->sum('paid_amount');
+        $overdue = $lines->filter(fn (FeeAssignment $l) => $l->displayStatus() === 'overdue');
+        $class = $student->currentEnrollment?->classRoom;
+
+        return response()->json(['data' => [
+            'student' => ['id' => $student->id, 'full_name' => $student->full_name, 'matricule' => $student->matricule, 'class_id' => $class?->id, 'class_name' => $class?->name],
+            'totals' => [
+                'expected' => $expected,
+                'paid' => $paid,
+                'remaining' => max(0, $expected - $paid),
+                'overdue_amount' => (int) $overdue->sum(fn (FeeAssignment $l) => $l->remaining()),
+                'status' => StudentBalanceResource::statusFor($expected, $paid, $overdue->count()),
+            ],
+            'fees' => PaymentLineResource::collection($lines)->resolve(),
+        ]]);
     }
 
     public function show(FeeAssignment $payment): PaymentLineResource

@@ -18,8 +18,11 @@ class ReportCardHeader
     /** Coordonnées que l'école peut afficher sous son nom, dans l'ordre d'affichage. */
     public const DETAILS = ['motto', 'address', 'phone', 'email', 'legal_id'];
 
+    /** Informations de l'élève que l'école peut afficher sous le titre, dans l'ordre d'affichage. */
+    public const STUDENT_FIELDS = ['matricule', 'class', 'birth_date', 'term', 'year'];
+
     /**
-     * @return array{lines: list<string>, logo: ?string, logo_position: string, second_logo: ?string, school: string, details: list<string>, title: string, color: string, photo: ?string, show_photo: bool, signature: ?string, stamp: ?string, signature_title: string, signatory_name: ?string}
+     * @return array<string, mixed>
      */
     public static function for(?Student $student, ?string $school = null): array
     {
@@ -37,7 +40,10 @@ class ReportCardHeader
         ])->only(array_intersect(self::DETAILS, $shown))->filter()->values()->all();
 
         $position = $reports['header_logo'] ?? 'left';
-        $color = (string) ($identity['primary_color'] ?? '#1D5C4D');
+        $color = (string) (filled($reports['accent_color'] ?? null) ? $reports['accent_color'] : ($identity['primary_color'] ?? '#1D5C4D'));
+        $logoPx = ['small' => 48, 'medium' => 72, 'large' => 100][$reports['logo_size'] ?? 'medium'] ?? 72;
+        [$photoW, $photoH] = ['small' => [54, 68], 'medium' => [66, 82], 'large' => [84, 104]][$reports['photo_size'] ?? 'medium'] ?? [66, 82];
+        $studentFields = array_values(array_intersect(self::STUDENT_FIELDS, (array) ($reports['student_fields'] ?? ['matricule', 'class', 'birth_date', 'term'])));
 
         return [
             'lines' => collect(preg_split('/\R/', (string) ($reports['header_lines'] ?? '')))->map(fn ($l) => trim($l))->filter()->take(6)->values()->all(),
@@ -54,7 +60,39 @@ class ReportCardHeader
             'stamp' => self::image($reports['stamp'] ?? null),
             'signature_title' => filled($reports['signature_title'] ?? null) ? $reports['signature_title'] : 'Le chef d’établissement',
             'signatory_name' => $reports['signatory_name'] ?? null,
+            // Éditeur de bulletin : style, en-tête, élève, filigrane
+            'font' => ($reports['font_family'] ?? 'sans') === 'serif' ? 'DejaVu Serif, Georgia, serif' : 'DejaVu Sans, Arial, sans-serif',
+            'border' => in_array($reports['page_border'] ?? 'none', ['thin', 'double'], true) ? $reports['page_border'] : 'none',
+            'align' => ($reports['header_align'] ?? 'center') === 'left' ? 'left' : 'center',
+            'logo_px' => $logoPx,
+            'divider' => ($reports['header_divider'] ?? 'no') === 'yes',
+            'title_style' => in_array($reports['title_style'] ?? 'band', ['band', 'line', 'plain'], true) ? $reports['title_style'] : 'band',
+            'student_layout' => ($reports['student_layout'] ?? 'plain') === 'card' ? 'card' : 'plain',
+            'student_fields' => $studentFields,
+            'photo_position' => ($reports['photo_position'] ?? 'right') === 'left' ? 'left' : 'right',
+            'photo_w' => $photoW,
+            'photo_h' => $photoH,
+            'watermark' => self::watermark($reports, $identity),
         ];
+    }
+
+    /**
+     * Filigrane imprimé derrière chaque page : logo de l'école, image au choix ou texte.
+     *
+     * @return array{type: string, src: ?string, text: ?string, opacity: float, width: int}|null
+     */
+    protected static function watermark(array $reports, array $identity): ?array
+    {
+        $mode = $reports['watermark_mode'] ?? 'none';
+        $opacity = max(3, min(30, (int) ($reports['watermark_opacity'] ?? 8))) / 100;
+        $width = ($reports['watermark_size'] ?? 'large') === 'medium' ? 50 : 70;
+
+        return match ($mode) {
+            'logo' => ($src = self::image($identity['logo'] ?? null)) ? ['type' => 'image', 'src' => $src, 'text' => null, 'opacity' => $opacity, 'width' => $width] : null,
+            'image' => ($src = self::image($reports['watermark_image'] ?? null)) ? ['type' => 'image', 'src' => $src, 'text' => null, 'opacity' => $opacity, 'width' => $width] : null,
+            'text' => filled($reports['watermark_text'] ?? null) ? ['type' => 'text', 'src' => null, 'text' => mb_substr((string) $reports['watermark_text'], 0, 40), 'opacity' => $opacity, 'width' => $width] : null,
+            default => null,
+        };
     }
 
     /**

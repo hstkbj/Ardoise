@@ -224,6 +224,8 @@ Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'ac
             Route::get('payments/summary', [Tenant\PaymentController::class, 'summary']);
             Route::post('payments/records/{record}/confirm', [Tenant\PaymentController::class, 'confirm']);
             Route::post('payments/records/{record}/cancel', [Tenant\PaymentController::class, 'cancel']);
+            Route::get('payments/students', [Tenant\PaymentController::class, 'students']);
+            Route::get('payments/students/{student}', [Tenant\PaymentController::class, 'student'])->whereNumber('student');
             Route::get('payments', [Tenant\PaymentController::class, 'index']);
             Route::post('payments', [Tenant\PaymentController::class, 'store']);
             Route::get('payments/{payment}', [Tenant\PaymentController::class, 'show']);

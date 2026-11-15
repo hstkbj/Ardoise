@@ -25,7 +25,15 @@ class SettingController extends Controller
             'header_show' => 'nullable|array', 'header_show.*' => 'in:motto,address,phone,email,legal_id',
             'header_title' => 'nullable|string|max:80', 'show_student_photo' => 'nullable|in:yes,no',
             'signature_title' => 'nullable|string|max:80', 'signatory_name' => 'nullable|string|max:80',
-            'remove_files' => 'nullable|array', 'remove_files.*' => 'in:second_logo,signature,stamp',
+            'design_preset' => 'nullable|in:classic,modern,official,custom', 'accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'font_family' => 'nullable|in:sans,serif', 'page_border' => 'nullable|in:none,thin,double',
+            'header_align' => 'nullable|in:center,left', 'logo_size' => 'nullable|in:small,medium,large',
+            'header_divider' => 'nullable|in:yes,no', 'title_style' => 'nullable|in:band,line,plain',
+            'student_layout' => 'nullable|in:plain,card', 'student_fields' => 'nullable|array', 'student_fields.*' => 'in:matricule,class,birth_date,term,year',
+            'photo_position' => 'nullable|in:right,left', 'photo_size' => 'nullable|in:small,medium,large',
+            'watermark_mode' => 'nullable|in:none,logo,image,text', 'watermark_text' => 'nullable|string|max:40',
+            'watermark_opacity' => 'nullable|integer|min:3|max:30', 'watermark_size' => 'nullable|in:medium,large',
+            'remove_files' => 'nullable|array', 'remove_files.*' => 'in:second_logo,signature,stamp,watermark_image',
         ],
         'notifications' => ['absence_notify' => 'nullable|in:immediate,daily,never', 'sms_sender' => 'nullable|string|max:11'],
         'notification_rules' => ['rules' => 'required|array', 'rules.*.recipients' => 'present|array', 'rules.*.recipients.*' => 'string', 'rules.*.channels' => 'present|array', 'rules.*.channels.*' => 'in:in_app,email,sms,push'],
@@ -90,7 +98,7 @@ class SettingController extends Controller
         }
         unset($values['remove_files']);
 
-        foreach (['logo', 'signature', 'second_logo', 'stamp'] as $file) {
+        foreach (['logo', 'signature', 'second_logo', 'stamp', 'watermark_image'] as $file) {
             if ($request->hasFile($file)) {
                 $request->validate([$file => ['image', 'max:2048']]);
                 $values[$file] = Storage::disk('public')->url($request->file($file)->store('tenants/'.tenant()->code.'/branding', 'public'));
