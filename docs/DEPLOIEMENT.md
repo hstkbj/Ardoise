@@ -34,6 +34,8 @@ Partir de `.env.example`, puis renseigner :
 | `TENANCY_CREATE_DB_USERS` | `true` pour un utilisateur MySQL par école (droit `CREATE USER` requis) |
 | `SESSION_DOMAIN` | vide : chaque adresse (domaine central, école) garde sa propre session |
 | `TRUSTED_PROXIES` | `*` derrière un reverse proxy HTTPS sur le même serveur (Docker : le port 8080 doit alors n'être joignable que par ce proxy, voir `APP_BIND`) |
+| `FORCE_HTTPS` / `SESSION_SECURE_COOKIE` | `true` / `true` : redirige HTTP vers HTTPS (301), envoie HSTS et marque le cookie de session « secure ». Exige `TRUSTED_PROXIES` derrière un proxy, sinon la redirection boucle. `/up` reste joignable en HTTP |
+| `LEGAL_COMPANY`, `LEGAL_ADDRESS`, `LEGAL_EMAIL`, `LEGAL_PHONE`, `LEGAL_HOST` | éditeur et hébergeur affichés dans `/privacy` et `/terms` : à renseigner avant la mise en ligne |
 | `API_DOCS` | `true` : Swagger de l'API parents sur `/api/docs` ; `false` pour le masquer |
 | `SANCTUM_STATEFUL_DOMAINS` | `votredomaine,*.votredomaine` |
 | `DB_CONNECTION`, `TENANT_DB_CONNECTION` | `mysql` |

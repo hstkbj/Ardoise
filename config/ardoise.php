@@ -8,6 +8,63 @@ return [
     // Documentation Swagger de l'API parents : /api/docs (API_DOCS=false pour la masquer)
     'api_docs' => env('API_DOCS', true),
 
+    // En production : redirige HTTP vers HTTPS et envoie HSTS (voir App\Http\Middleware\ForceHttps)
+    'force_https' => (bool) env('FORCE_HTTPS', false),
+
+    /*
+     * Éditeur du service, repris dans la politique de confidentialité et les conditions
+     * générales (pages publiques /privacy et /terms). À renseigner avant la mise en ligne.
+     */
+    'legal' => [
+        'company' => env('LEGAL_COMPANY'),
+        'address' => env('LEGAL_ADDRESS'),
+        'email' => env('LEGAL_EMAIL'),
+        'phone' => env('LEGAL_PHONE'),
+        'host' => env('LEGAL_HOST'),
+        'authority' => env('LEGAL_AUTHORITY', 'Autorité de protection des données personnelles (APDP)'),
+    ],
+
+    /*
+     * Titres et descriptions des pages publiques (balises meta, Open Graph, Twitter).
+     * Source unique : lue par le serveur (premier affichage, robots) et par le routeur Vue.
+     * Les autres pages (connexion, espaces écoles) ne sont pas indexées.
+     */
+    'seo' => [
+        'site_name' => 'Ardoise',
+        'image' => '/og-image.png',
+        'image_alt' => 'Ardoise, la plateforme de gestion scolaire pour les écoles d’Afrique francophone',
+        'pages' => [
+            '/' => [
+                'title' => 'Ardoise · Logiciel de gestion scolaire en ligne',
+                'description' => 'Inscriptions, notes, présences, bulletins, paiements et espace parents : Ardoise réunit toute la vie de l’école dans une seule plateforme, pensée pour l’Afrique francophone.',
+            ],
+            '/features' => [
+                'title' => 'Fonctionnalités · Ardoise',
+                'description' => 'Scolarité, évaluations et bulletins, présences, emploi du temps, frais et paiement en ligne, application mobile pour les parents : découvrez tout ce qu’Ardoise fait pour votre école.',
+            ],
+            '/pricing' => [
+                'title' => 'Tarifs · Ardoise',
+                'description' => 'Des offres simples selon la taille de votre établissement, avec mise en place, import des données et formation inclus. Essai avant de vous engager.',
+            ],
+            '/contact' => [
+                'title' => 'Demander une démo · Ardoise',
+                'description' => 'Laissez-nous vos coordonnées : nous vous présentons Ardoise avec une école de démonstration, puis nous préparons votre espace.',
+            ],
+            '/guide' => [
+                'title' => 'Guide d’utilisation · Ardoise',
+                'description' => 'Pas à pas pour la direction, les enseignants et les parents : prendre en main Ardoise, de l’inscription des élèves au bulletin.',
+            ],
+            '/privacy' => [
+                'title' => 'Politique de confidentialité · Ardoise',
+                'description' => 'Quelles données personnelles Ardoise traite, pourquoi, combien de temps, comment elles sont protégées et comment exercer vos droits.',
+            ],
+            '/terms' => [
+                'title' => 'Conditions générales d’utilisation · Ardoise',
+                'description' => 'Les règles d’utilisation du service Ardoise : abonnement, obligations de l’école et de l’éditeur, données, paiement et résiliation.',
+            ],
+        ],
+    ],
+
     'parent_codes' => [
         // Alphabet sans caractères ambigus (0/O, 1/I/L)
         'alphabet' => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789',

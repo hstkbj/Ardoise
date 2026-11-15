@@ -21,6 +21,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;
 
@@ -55,6 +56,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+
+        // Liens générés (réinitialisation de mot de passe, fichiers…) toujours en https
+        if (config('ardoise.force_https')) {
+            URL::forceScheme('https');
+        }
 
         // Notifications et e-mails en file : la tâche emporte l'école concernée
         QueueTenancy::register();

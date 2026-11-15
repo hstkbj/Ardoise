@@ -1,5 +1,8 @@
 <?php
 
+use App\Support\SeoMeta;
+use App\Tenancy\TenantResolver;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -11,9 +14,48 @@ if (config('ardoise.api_docs')) {
 }
 
 /*
+| Référencement : robots.txt et plan du site des pages publiques (domaine central).
+*/
+Route::get('/robots.txt', function (Request $request) {
+    $lines = [
+        'User-agent: *',
+        'Disallow: /admin',
+        'Disallow: /teacher',
+        'Disallow: /superadmin',
+        'Disallow: /api',
+        'Disallow: /login',
+        'Allow: /',
+        '',
+        'Sitemap: '.$request->getSchemeAndHttpHost().'/sitemap.xml',
+    ];
+
+    return response(implode("\n", $lines)."\n", 200, ['Content-Type' => 'text/plain; charset=utf-8']);
+})->name('robots');
+
+Route::get('/sitemap.xml', function (Request $request) {
+    $base = $request->getSchemeAndHttpHost();
+    $urls = collect(array_keys(config('ardoise.seo.pages')))
+        ->map(fn (string $path) => '  <url><loc>'.e($base.($path === '/' ? '/' : $path)).'</loc></url>')
+        ->implode("\n");
+
+    return response('<?xml version="1.0" encoding="UTF-8"?>'."\n".'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n".$urls."\n</urlset>\n", 200, ['Content-Type' => 'application/xml; charset=utf-8']);
+})->name('sitemap');
+
+/*
 | SPA Vue : toutes les URLs (hors /api, /sanctum, /up) renvoient la vue unique
 | « app ». Vue Router gère ensuite la navigation (resources/js/router).
 */
-Route::view('/{any?}', 'app')
+Route::get('/{any?}', function (Request $request, TenantResolver $resolver) {
+    $central = $resolver->isCentralHost($request->getHost());
+
+    return view('app', [
+        'seo' => SeoMeta::forRequest($request, $central),
+        'client' => [
+            'central' => $central,
+            'legal' => array_filter((array) config('ardoise.legal'), fn ($value) => filled($value)),
+            'seo' => ['pages' => config('ardoise.seo.pages'), 'siteName' => config('ardoise.seo.site_name')],
+        ],
+    ]);
+})
     ->where('any', '^(?!api|sanctum|up|storage).*$')
     ->name('spa');

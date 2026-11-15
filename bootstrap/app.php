@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureAccountIsSecured;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureTenantIsActive;
 use App\Http\Middleware\EnsureUserBelongsToTenant;
+use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\IdentifyTenant;
 use App\Http\Middleware\RequirePlanFeature;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -29,6 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
         if ($proxies = env('TRUSTED_PROXIES')) {
             $middleware->trustProxies(at: $proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
         }
+
+        // HTTPS obligatoire (FORCE_HTTPS=true) : placé après TrustProxies pour lire le schéma du proxy
+        $middleware->append(ForceHttps::class);
 
         $middleware->alias([
             'tenant' => IdentifyTenant::class,

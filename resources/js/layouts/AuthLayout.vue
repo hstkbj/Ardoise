@@ -17,6 +17,10 @@ import BrandLogo from '@/components/layout/BrandLogo.vue';
     <main id="main" class="flex flex-col px-5 py-8 sm:px-10">
       <RouterLink to="/" class="mb-10 lg:hidden" aria-label="Accueil"><BrandLogo /></RouterLink>
       <div class="m-auto w-full max-w-[420px]"><RouterView /></div>
+      <p class="mt-8 flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-subtle">
+        <RouterLink to="/privacy" class="hover:text-ink hover:underline">Confidentialité</RouterLink>
+        <RouterLink to="/terms" class="hover:text-ink hover:underline">Conditions générales</RouterLink>
+      </p>
     </main>
   </div>
 </template>

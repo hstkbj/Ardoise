@@ -5,9 +5,11 @@ import AppIcon from '@/components/ui/AppIcon.vue';
 import BrandLogo from '@/components/layout/BrandLogo.vue';
 import { publicApi } from '@/services/api';
 import { useUiStore } from '@/stores/ui';
+import { useCookieConsent } from '@/composables/useCookieConsent';
 
 const route = useRoute();
 const ui = useUiStore();
+const { reopen: manageCookies } = useCookieConsent();
 const open = ref(false);
 const email = ref('');
 const sending = ref(false);
@@ -91,7 +93,12 @@ async function subscribe() {
           </div>
         </form>
       </div>
-      <p class="border-t border-line py-6 text-center text-xs text-subtle">© {{ new Date().getFullYear() }} Ardoise. Tous droits réservés.</p>
+      <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-line px-5 py-6 text-xs text-subtle">
+        <p>© {{ new Date().getFullYear() }} Ardoise. Tous droits réservés.</p>
+        <RouterLink to="/privacy" class="hover:text-ink hover:underline">Politique de confidentialité</RouterLink>
+        <RouterLink to="/terms" class="hover:text-ink hover:underline">Conditions générales</RouterLink>
+        <button type="button" class="hover:text-ink hover:underline" @click="manageCookies">Gérer les cookies</button>
+      </div>
     </footer>
   </div>
 </template>

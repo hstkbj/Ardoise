@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { resourceRoutes } from './helpers';
 import { useAuthStore, STAFF_ROLES } from '@/stores/auth';
+import { applySeo } from '@/utils/seo';
 
 // Mises en page
 import PublicLayout from '@/layouts/PublicLayout.vue';
@@ -17,6 +18,8 @@ const p = {
   pricing: () => import('@/pages/public/PricingPage.vue'),
   contact: () => import('@/pages/public/ContactPage.vue'),
   guide: () => import('@/pages/public/GuidePage.vue'),
+  privacy: () => import('@/pages/public/PrivacyPage.vue'),
+  terms: () => import('@/pages/public/TermsPage.vue'),
   login: () => import('@/pages/public/LoginPage.vue'),
   forgot: () => import('@/pages/public/ForgotPasswordPage.vue'),
   reset: () => import('@/pages/public/ResetPasswordPage.vue'),
@@ -67,6 +70,8 @@ const routes = [
       { path: 'pricing', component: p.pricing, meta: { title: 'Tarifs' } },
       { path: 'contact', component: p.contact, meta: { title: 'Contact' } },
       { path: 'guide', component: p.guide, meta: { title: 'Guide d’utilisation', allowWhenExpired: true } },
+      { path: 'privacy', component: p.privacy, meta: { title: 'Politique de confidentialité', allowWhenExpired: true } },
+      { path: 'terms', component: p.terms, meta: { title: 'Conditions générales d’utilisation', allowWhenExpired: true } },
     ],
   },
   {
@@ -228,7 +233,7 @@ router.beforeEach((to) => {
 });
 
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title} · Ardoise` : 'Ardoise';
+  applySeo(to);
 });
 
 export default router;
