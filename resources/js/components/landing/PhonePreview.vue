@@ -3,7 +3,7 @@
 </script>
 
 <template>
-  <div class="mx-auto w-[230px] rounded-[36px] border-[6px] border-ink bg-cream p-3 shadow-xl" aria-hidden="true">
+  <div class="mx-auto w-[230px] rounded-[36px] border-[6px] border-ink bg-cream p-3 shadow-xl" role="img" aria-label="Aperçu de l’application mobile Ardoise pour les parents : notes, absences et paiements">
     <div class="mx-auto mb-3 h-1.5 w-16 rounded-full bg-ink/80" />
     <p class="text-[11px] text-muted">Bonjour Mariam</p>
     <p class="text-sm font-semibold">Awa · 5e B</p>

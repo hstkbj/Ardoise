@@ -29,6 +29,7 @@ class PlatformDemoRequestTest extends TestCase
             'students' => '300 à 1 000',
             'sites' => 2,
             'message' => 'Je souhaite une démonstration.',
+            'form_token' => $this->getJson('/api/v1/public/form-token')->json('data.token'),
         ];
 
         $this->postJson('/api/v1/public/demo-requests', $payload)

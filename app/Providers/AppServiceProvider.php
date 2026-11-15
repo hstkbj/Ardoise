@@ -92,6 +92,12 @@ class AppServiceProvider extends ServiceProvider
         // 2e étape de connexion : chaque défi est en plus limité à 5 essais (TwoFactorChallenge)
         RateLimiter::for('two-factor', fn (Request $request) => Limit::perMinute(10)->by('2fa:'.$request->ip()));
 
+        // Formulaires publics (démo, lettre d'information) : 5 par minute et 20 par heure et par adresse IP
+        RateLimiter::for('public-forms', fn (Request $request) => [
+            Limit::perMinute(5)->by('forms-min:'.$request->ip()),
+            Limit::perHour(20)->by('forms-hour:'.$request->ip()),
+        ]);
+
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(240)->by($request->user()?->getAuthIdentifier().'|'.$request->ip()));
 
         ResetPassword::createUrlUsing(function ($user, string $token) {

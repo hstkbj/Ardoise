@@ -3,12 +3,17 @@ import { reactive, ref } from 'vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import { publicApi } from '@/services/api';
 import { useFormErrors } from '@/composables/useFormErrors';
+import { useSpamGuard } from '@/composables/useSpamGuard';
+import HoneypotField from '@/components/ui/HoneypotField.vue';
+import TurnstileWidget from '@/components/ui/TurnstileWidget.vue';
 
 const form = reactive({ name: '', role: '', school: '', city: '', email: '', phone: '', students: '', sites: 1, message: '' });
 const { errors, validateRequired, setServerErrors } = useFormErrors();
 const sending = ref(false);
 const sent = ref(false);
 const failure = ref('');
+const guard = useSpamGuard();
+const turnstile = ref(null);
 
 const fields = [
   { key: 'name', required: true },
@@ -22,11 +27,13 @@ async function submit() {
   if (!validateRequired(fields, form)) return;
   sending.value = true;
   try {
-    await publicApi.demoRequest({ ...form, sites: Number(form.sites) || null });
+    await publicApi.demoRequest({ ...form, sites: Number(form.sites) || null, ...guard.fields() });
     sent.value = true;
   } catch (e) {
     setServerErrors(e.errors);
-    failure.value = e.message;
+    failure.value = e.errors?.form_token?.[0] || e.message;
+    await guard.refresh();
+    turnstile.value?.reset();
   } finally {
     sending.value = false;
   }
@@ -51,7 +58,8 @@ async function submit() {
         <h2 class="mt-5 text-xl font-semibold">Merci, demande envoyée !</h2>
         <p class="mt-2 text-muted">Nous vous recontactons très rapidement.</p>
       </div>
-      <form v-else class="grid gap-4 sm:grid-cols-2" novalidate @submit.prevent="submit">
+      <form v-else class="relative grid gap-4 sm:grid-cols-2" novalidate @submit.prevent="submit">
+        <HoneypotField v-model="guard.honeypot.value" />
         <div class="flex flex-col gap-1"><label for="c-name" class="label">Nom complet *</label><input id="c-name" v-model="form.name" class="input" autocomplete="name" :aria-invalid="!!errors.name" /><p v-if="errors.name" class="text-xs text-danger-600">{{ errors.name }}</p></div>
         <div class="flex flex-col gap-1"><label for="c-role" class="label">Fonction</label><input id="c-role" v-model="form.role" class="input" placeholder="Directeur, fondateur…" /></div>
         <div class="flex flex-col gap-1"><label for="c-school" class="label">Établissement *</label><input id="c-school" v-model="form.school" class="input" :aria-invalid="!!errors.school" /><p v-if="errors.school" class="text-xs text-danger-600">{{ errors.school }}</p></div>
@@ -64,6 +72,7 @@ async function submit() {
         </div>
         <div class="flex flex-col gap-1"><label for="c-sites" class="label">Nombre de sites</label><input id="c-sites" v-model="form.sites" type="number" min="1" class="input" /></div>
         <div class="flex flex-col gap-1 sm:col-span-2"><label for="c-msg" class="label">Message</label><textarea id="c-msg" v-model="form.message" rows="4" class="input" /></div>
+        <div v-if="guard.siteKey" class="sm:col-span-2"><TurnstileWidget ref="turnstile" v-model="guard.captcha.value" :site-key="guard.siteKey" /></div>
         <p v-if="failure" class="text-sm text-danger-600 sm:col-span-2" role="alert">{{ failure }}</p>
         <button type="submit" class="btn btn-lg btn-primary rounded-full sm:col-span-2" :disabled="sending">{{ sending ? 'Envoi…' : 'Envoyer ma demande' }}</button>
       </form>

@@ -3,6 +3,7 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
 import { useAuthStore } from './stores/auth';
+import { initAnalytics } from './utils/analytics';
 
 const app = createApp(App);
 app.use(createPinia());
@@ -12,4 +13,5 @@ const auth = useAuthStore();
 auth.init().finally(() => {
   app.use(router);
   app.mount('#app');
+  initAnalytics();
 });

@@ -10,6 +10,11 @@
     <meta name="theme-color" content="#1D5C4D">
     <link rel="canonical" href="{{ $seo['url'] }}">
 
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+
     <meta property="og:type" content="website">
     <meta property="og:locale" content="fr_FR">
     <meta property="og:site_name" content="{{ $seo['site_name'] }}">
@@ -28,7 +33,7 @@
     <meta name="twitter:image:alt" content="{{ $seo['image_alt'] }}">
 
     <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet">
+    <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700&display=swap" rel="stylesheet">
     {{-- Informations publiques uniquement (coordonnées de l'éditeur, textes SEO) : jamais de clé ni de secret --}}
     <script>window.__ARDOISE__ = @json($client);</script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])

@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ClientConfig;
 use App\Support\SeoMeta;
 use App\Tenancy\TenantResolver;
 use Illuminate\Http\Request;
@@ -15,24 +16,29 @@ if (config('ardoise.api_docs')) {
 
 /*
 | Référencement : robots.txt et plan du site des pages publiques (domaine central).
+| Les adresses des écoles ne sont jamais indexées : robots.txt y interdit tout, sans plan du site.
 */
-Route::get('/robots.txt', function (Request $request) {
-    $lines = [
-        'User-agent: *',
-        'Disallow: /admin',
-        'Disallow: /teacher',
-        'Disallow: /superadmin',
-        'Disallow: /api',
-        'Disallow: /login',
-        'Allow: /',
-        '',
-        'Sitemap: '.$request->getSchemeAndHttpHost().'/sitemap.xml',
-    ];
+Route::get('/robots.txt', function (Request $request, TenantResolver $resolver) {
+    $lines = $resolver->isCentralHost($request->getHost())
+        ? [
+            'User-agent: *',
+            'Disallow: /admin',
+            'Disallow: /teacher',
+            'Disallow: /superadmin',
+            'Disallow: /api',
+            'Disallow: /login',
+            'Allow: /',
+            '',
+            'Sitemap: '.$request->getSchemeAndHttpHost().'/sitemap.xml',
+        ]
+        : ['User-agent: *', 'Disallow: /'];
 
     return response(implode("\n", $lines)."\n", 200, ['Content-Type' => 'text/plain; charset=utf-8']);
 })->name('robots');
 
-Route::get('/sitemap.xml', function (Request $request) {
+Route::get('/sitemap.xml', function (Request $request, TenantResolver $resolver) {
+    abort_unless($resolver->isCentralHost($request->getHost()), 404);
+
     $base = $request->getSchemeAndHttpHost();
     $urls = collect(array_keys(config('ardoise.seo.pages')))
         ->map(fn (string $path) => '  <url><loc>'.e($base.($path === '/' ? '/' : $path)).'</loc></url>')
@@ -44,18 +50,16 @@ Route::get('/sitemap.xml', function (Request $request) {
 /*
 | SPA Vue : toutes les URLs (hors /api, /sanctum, /up) renvoient la vue unique
 | « app ». Vue Router gère ensuite la navigation (resources/js/router).
+| Une adresse que le routeur ne connaît pas reçoit le statut 404 (les moteurs de recherche
+| n'indexent pas de fausses pages) ; la page « Page introuvable » de l'application s'affiche.
 */
 Route::get('/{any?}', function (Request $request, TenantResolver $resolver) {
     $central = $resolver->isCentralHost($request->getHost());
 
-    return view('app', [
+    return response()->view('app', [
         'seo' => SeoMeta::forRequest($request, $central),
-        'client' => [
-            'central' => $central,
-            'legal' => array_filter((array) config('ardoise.legal'), fn ($value) => filled($value)),
-            'seo' => ['pages' => config('ardoise.seo.pages'), 'siteName' => config('ardoise.seo.site_name')],
-        ],
-    ]);
+        'client' => ClientConfig::for($central),
+    ], ClientConfig::isKnownPath($request->path()) ? 200 : 404);
 })
     ->where('any', '^(?!api|sanctum|up|storage).*$')
     ->name('spa');

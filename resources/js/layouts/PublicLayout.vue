@@ -6,6 +6,8 @@ import BrandLogo from '@/components/layout/BrandLogo.vue';
 import { publicApi } from '@/services/api';
 import { useUiStore } from '@/stores/ui';
 import { useCookieConsent } from '@/composables/useCookieConsent';
+import { useSpamGuard } from '@/composables/useSpamGuard';
+import HoneypotField from '@/components/ui/HoneypotField.vue';
 
 const route = useRoute();
 const ui = useUiStore();
@@ -13,6 +15,7 @@ const { reopen: manageCookies } = useCookieConsent();
 const open = ref(false);
 const email = ref('');
 const sending = ref(false);
+const guard = useSpamGuard();
 
 const links = [
   { label: 'Fonctionnalités', to: '/features' },
@@ -27,11 +30,12 @@ async function subscribe() {
   if (!/^\S+@\S+\.\S+$/.test(email.value)) return ui.toast('Adresse e-mail invalide.', { tone: 'error' });
   sending.value = true;
   try {
-    await publicApi.newsletter(email.value);
+    await publicApi.newsletter(email.value, guard.fields());
     ui.toast('Merci ! Vous êtes inscrit à la lettre d’information.');
     email.value = '';
   } catch (e) {
     ui.error(e);
+    await guard.refresh();
   } finally {
     sending.value = false;
   }
@@ -84,7 +88,8 @@ async function subscribe() {
             <li><RouterLink to="/contact" class="hover:text-ink">Demander une démo</RouterLink></li>
           </ul>
         </div>
-        <form class="space-y-3" @submit.prevent="subscribe">
+        <form class="relative space-y-3" @submit.prevent="subscribe">
+          <HoneypotField v-model="guard.honeypot.value" />
           <label for="newsletter" class="text-sm font-semibold">Lettre d’information</label>
           <p class="text-sm text-muted">Nouveautés et conseils, une fois par mois.</p>
           <div class="flex gap-2">

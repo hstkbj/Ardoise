@@ -25,6 +25,31 @@ return [
     ],
 
     /*
+     * Anti-spam des formulaires publics (App\Support\SpamGuard) : champ piège, jeton de temps
+     * et, en option, Cloudflare Turnstile (clé du site publique, clé secrète côté serveur uniquement).
+     */
+    'spam' => [
+        'enabled' => (bool) env('SPAM_GUARD', true),
+        'min_seconds' => (int) env('SPAM_MIN_SECONDS', 3),
+        'turnstile' => [
+            'site_key' => env('TURNSTILE_SITE_KEY'),
+            'secret_key' => env('TURNSTILE_SECRET_KEY'),
+        ],
+    ],
+
+    /*
+     * Mesure d'audience des pages publiques (jamais dans les espaces écoles, enseignants ou superadmin).
+     * ANALYTICS_PROVIDER : plausible | umami | ga4 ; vide = aucune mesure, aucun script chargé.
+     * ANALYTICS_ID : domaine suivi (plausible), identifiant du site (umami) ou « G-XXXX » (ga4).
+     * ANALYTICS_SRC : adresse du script (plausible/umami auto-hébergés ou fournie par le service).
+     */
+    'analytics' => [
+        'provider' => env('ANALYTICS_PROVIDER'),
+        'id' => env('ANALYTICS_ID'),
+        'src' => env('ANALYTICS_SRC'),
+    ],
+
+    /*
      * Titres et descriptions des pages publiques (balises meta, Open Graph, Twitter).
      * Source unique : lue par le serveur (premier affichage, robots) et par le routeur Vue.
      * Les autres pages (connexion, espaces écoles) ne sont pas indexées.

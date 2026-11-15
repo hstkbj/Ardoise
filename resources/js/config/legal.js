@@ -21,6 +21,38 @@ export function legalInfo() {
   };
 }
 
+const ANALYTICS_NAMES = { plausible: 'Plausible Analytics', umami: 'Umami', ga4: 'Google Analytics' };
+
+/** Outil de mesure d'audience configuré côté serveur, ou null. */
+export function analyticsInfo() {
+  const a = (typeof window !== 'undefined' && window.__ARDOISE__?.analytics) || null;
+  return a ? { name: ANALYTICS_NAMES[a.provider] || a.provider, cookies: a.provider === 'ga4' } : null;
+}
+
+/** Paragraphes « cookies » : ils décrivent la mesure d'audience seulement si elle est activée. */
+function cookieParagraphs() {
+  const a = analyticsInfo();
+  const essential = 'Ardoise utilise les cookies indispensables au fonctionnement : le cookie de session (pour rester connecté) et le cookie de sécurité qui protège les formulaires. Ils ne nécessitent pas de consentement.';
+  const manage = 'Votre choix (accepter ou refuser les cookies facultatifs) est mémorisé dans votre navigateur. Vous pouvez le modifier à tout moment avec le lien « Gérer les cookies » en bas de page.';
+
+  if (!a) {
+    return [
+      essential,
+      'Nous n’utilisons aucun cookie publicitaire ni de suivi à ce jour. Si nous ajoutons un jour des outils de mesure d’audience ou d’autres cookies facultatifs, ils ne seront déposés qu’avec votre accord.',
+      manage,
+    ];
+  }
+
+  return [
+    essential,
+    a.cookies
+      ? `Nous mesurons l’audience des pages publiques de ce site (accueil, fonctionnalités, tarifs, contact, guide, pages légales) avec ${a.name}. Cet outil dépose des cookies facultatifs, uniquement si vous cliquez sur « Accepter » ; ses données peuvent être traitées hors du pays d’exploitation.`
+      : `Nous mesurons l’audience des pages publiques de ce site (accueil, fonctionnalités, tarifs, contact, guide, pages légales) avec ${a.name}, sans cookie et sans vous suivre d’un site à l’autre. Les statistiques sont agrégées. Le signal « Ne pas me suivre » de votre navigateur est respecté.`,
+    'Aucune mesure d’audience n’est faite dans les espaces des établissements (administration, enseignants, connexion). Nous n’utilisons aucun cookie publicitaire.',
+    manage,
+  ];
+}
+
 /** Une section = { id, title, paragraphs?: string[], items?: string[] }. */
 export function privacySections() {
   const i = legalInfo();
@@ -52,6 +84,7 @@ export function privacySections() {
         'Comptes utilisateurs : identifiant, mot de passe (conservé sous forme chiffrée irréversible), paramètres de double authentification, journal des actions importantes.',
         'Visiteurs du site : informations saisies dans le formulaire de démonstration (nom, fonction, établissement, ville, e-mail, téléphone, effectif, message) et adresse e-mail de la lettre d’information.',
         'Données techniques : adresse IP et journaux de sécurité, nécessaires au fonctionnement et à la protection du service.',
+        ...(analyticsInfo() ? ['Statistiques de fréquentation des pages publiques du site : pages vues, type d’appareil, pays (sans identification personnelle).'] : []),
       ],
     },
     {
@@ -117,11 +150,7 @@ export function privacySections() {
     {
       id: 'cookies',
       title: 'Cookies et traceurs',
-      paragraphs: [
-        'Ardoise utilise uniquement des cookies indispensables au fonctionnement : le cookie de session (pour rester connecté) et le cookie de sécurité qui protège les formulaires. Ils ne nécessitent pas de consentement.',
-        'Nous n’utilisons aucun cookie publicitaire ni de suivi à ce jour. Si nous ajoutons un jour des outils de mesure d’audience ou d’autres cookies facultatifs, ils ne seront déposés qu’avec votre accord.',
-        'Votre choix (accepter ou refuser les cookies facultatifs) est mémorisé dans votre navigateur. Vous pouvez le modifier à tout moment avec le lien « Gérer les cookies » en bas de page.',
-      ],
+      paragraphs: cookieParagraphs(),
     },
     {
       id: 'droits',

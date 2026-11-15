@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureTenantIsActive;
 use App\Http\Middleware\EnsureUserBelongsToTenant;
 use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\IdentifyTenant;
+use App\Http\Middleware\ProtectPublicForms;
 use App\Http\Middleware\RequirePlanFeature;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
@@ -42,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureRole::class,
             'feature' => RequirePlanFeature::class,
             'account.secured' => EnsureAccountIsSecured::class,
+            'spam.guard' => ProtectPublicForms::class,
         ]);
 
         // Connecter la base de l'école avant que la session DB recharge son utilisateur.

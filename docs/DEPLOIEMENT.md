@@ -36,6 +36,9 @@ Partir de `.env.example`, puis renseigner :
 | `TRUSTED_PROXIES` | `*` derrière un reverse proxy HTTPS sur le même serveur (Docker : le port 8080 doit alors n'être joignable que par ce proxy, voir `APP_BIND`) |
 | `FORCE_HTTPS` / `SESSION_SECURE_COOKIE` | `true` / `true` : redirige HTTP vers HTTPS (301), envoie HSTS et marque le cookie de session « secure ». Exige `TRUSTED_PROXIES` derrière un proxy, sinon la redirection boucle. `/up` reste joignable en HTTP |
 | `LEGAL_COMPANY`, `LEGAL_ADDRESS`, `LEGAL_EMAIL`, `LEGAL_PHONE`, `LEGAL_HOST` | éditeur et hébergeur affichés dans `/privacy` et `/terms` : à renseigner avant la mise en ligne |
+| `SPAM_GUARD`, `SPAM_MIN_SECONDS` | anti-spam des formulaires publics (champ piège + jeton de temps, 3 s minimum par défaut) ; actif par défaut |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | optionnel : ajoute le défi Cloudflare Turnstile au formulaire de démonstration (la clé secrète reste côté serveur) |
+| `ANALYTICS_PROVIDER`, `ANALYTICS_ID`, `ANALYTICS_SRC` | mesure d'audience des pages publiques : `plausible`, `umami` (sans cookie) ou `ga4` (après consentement) ; vide = désactivée. Mettre à jour `/privacy` si vous l'activez |
 | `API_DOCS` | `true` : Swagger de l'API parents sur `/api/docs` ; `false` pour le masquer |
 | `SANCTUM_STATEFUL_DOMAINS` | `votredomaine,*.votredomaine` |
 | `DB_CONNECTION`, `TENANT_DB_CONNECTION` | `mysql` |

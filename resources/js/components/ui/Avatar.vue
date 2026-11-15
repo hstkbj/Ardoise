@@ -13,6 +13,6 @@ const tint = computed(() => tints[[...(props.name || '')].reduce((a, c) => a + c
 </script>
 
 <template>
-  <img v-if="src" :src="src" :alt="name" class="shrink-0 rounded-full object-cover" :class="sizes[size]" />
+  <img v-if="src" :src="src" :alt="name ? `Photo de ${name}` : 'Photo'" loading="lazy" decoding="async" class="shrink-0 rounded-full object-cover" :class="sizes[size]" />
   <span v-else class="inline-flex shrink-0 items-center justify-center rounded-full font-semibold" :class="[sizes[size], tint]" aria-hidden="true">{{ initials(name) }}</span>
 </template>

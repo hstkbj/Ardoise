@@ -4,7 +4,7 @@ const bars = [62, 74, 58, 81, 69, 88, 77];
 </script>
 
 <template>
-  <div class="rounded-[28px] border border-line bg-white p-3 shadow-[0_30px_80px_-30px_rgba(29,92,77,0.35)]" aria-hidden="true">
+  <div class="rounded-[28px] border border-line bg-white p-3 shadow-[0_30px_80px_-30px_rgba(29,92,77,0.35)]" role="img" aria-label="Aperçu du tableau de bord Ardoise : effectifs, paiements, absences du jour et moyennes par niveau">
     <div class="flex items-center gap-1.5 px-3 pb-3"><span class="size-2.5 rounded-full bg-line-strong" /><span class="size-2.5 rounded-full bg-line-strong" /><span class="size-2.5 rounded-full bg-line-strong" /></div>
     <div class="grid gap-3 rounded-[20px] bg-ground-soft p-4 sm:grid-cols-[150px_1fr]">
       <div class="hidden space-y-2 sm:block">

@@ -169,7 +169,7 @@ const FILES = {
           <div class="flex flex-col gap-2">
             <FormField v-model="values.second_logo" :field="FILES.second_logo" :error="errors.second_logo" />
             <div v-if="images.second_logo" class="flex items-center gap-3">
-              <img :src="images.second_logo" alt="Second logo" class="size-12 rounded-lg border border-line bg-white object-contain" />
+              <img :src="images.second_logo" alt="Deuxième logo" class="size-12 rounded-lg border border-line bg-white object-contain" />
               <button type="button" class="btn btn-ghost btn-sm" @click="emit('remove-image', 'second_logo')"><AppIcon name="trash" class="size-4" />Retirer</button>
             </div>
           </div>

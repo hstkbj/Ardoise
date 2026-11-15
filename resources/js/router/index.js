@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { resourceRoutes } from './helpers';
 import { useAuthStore, STAFF_ROLES } from '@/stores/auth';
 import { applySeo } from '@/utils/seo';
+import { trackPageView } from '@/utils/analytics';
 
 // Mises en page
 import PublicLayout from '@/layouts/PublicLayout.vue';
@@ -20,6 +21,7 @@ const p = {
   guide: () => import('@/pages/public/GuidePage.vue'),
   privacy: () => import('@/pages/public/PrivacyPage.vue'),
   terms: () => import('@/pages/public/TermsPage.vue'),
+  parentApp: () => import('@/pages/public/ParentAppPage.vue'),
   login: () => import('@/pages/public/LoginPage.vue'),
   forgot: () => import('@/pages/public/ForgotPasswordPage.vue'),
   reset: () => import('@/pages/public/ResetPasswordPage.vue'),
@@ -73,6 +75,8 @@ const routes = [
       { path: 'contact', component: p.contact, meta: { title: 'Contact' } },
       { path: 'guide', component: p.guide, meta: { title: 'Guide d’utilisation', allowWhenExpired: true } },
       { path: 'privacy', component: p.privacy, meta: { title: 'Politique de confidentialité', allowWhenExpired: true } },
+      // Anciens liens des notifications destinées aux parents : l'espace parents est dans l'application mobile
+      { path: 'parent/:rest(.*)*', component: p.parentApp, meta: { title: 'Espace parents', allowWhenExpired: true } },
       { path: 'terms', component: p.terms, meta: { title: 'Conditions générales d’utilisation', allowWhenExpired: true } },
     ],
   },
@@ -238,6 +242,7 @@ router.beforeEach((to) => {
 
 router.afterEach((to) => {
   applySeo(to);
+  trackPageView(to);
 });
 
 export default router;

@@ -27,9 +27,10 @@ use Illuminate\Support\Facades\Route;
 // ── Site public ───────────────────────────────────────────────────────────
 Route::prefix('public')->group(function () {
     Route::get('plans', [PublicController::class, 'plans']);
-    Route::post('demo-requests', [PublicController::class, 'demoRequest'])->middleware('throttle:10,1');
+    Route::get('form-token', [PublicController::class, 'formToken'])->middleware('throttle:30,1');
+    Route::post('demo-requests', [PublicController::class, 'demoRequest'])->middleware(['throttle:public-forms', 'spam.guard:captcha']);
 });
-Route::post('newsletter', [PublicController::class, 'newsletter'])->middleware('throttle:10,1');
+Route::post('newsletter', [PublicController::class, 'newsletter'])->middleware(['throttle:public-forms', 'spam.guard']);
 
 // ── Webhooks FedaPay (signés ; aucune session) ─────────────────────────────
 Route::prefix('webhooks/fedapay')->middleware('throttle:120,1')->group(function () {

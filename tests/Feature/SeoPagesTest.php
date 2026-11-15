@@ -45,9 +45,32 @@ class SeoPagesTest extends TestCase
         $this->assertSame('noindex, nofollow', $meta['robots']);
     }
 
-    public function test_the_social_preview_image_exists(): void
+    public function test_the_social_preview_image_and_the_favicons_exist(): void
     {
-        $this->assertFileExists(public_path(ltrim(config('ardoise.seo.image'), '/')));
+        foreach ([ltrim(config('ardoise.seo.image'), '/'), 'favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'site.webmanifest'] as $file) {
+            $this->assertGreaterThan(0, filesize(public_path($file)), "public/{$file} est vide ou absent.");
+        }
+
+        $this->get('/')
+            ->assertSee('<link rel="icon" href="/favicon.svg" type="image/svg+xml">', false)
+            ->assertSee('<link rel="apple-touch-icon" href="/apple-touch-icon.png">', false)
+            ->assertSee('<link rel="manifest" href="/site.webmanifest">', false);
+    }
+
+    public function test_unknown_addresses_answer_404_while_known_ones_answer_200(): void
+    {
+        $this->get('/page-qui-n-existe-pas')->assertNotFound()->assertSee('noindex, nofollow', false);
+        $this->get('/login')->assertOk();
+        $this->get('/admin/students')->assertOk();
+        $this->get('/parent/grades')->assertOk();
+    }
+
+    public function test_the_server_404_page_is_customised(): void
+    {
+        $this->get('/storage/fichier-absent.png')
+            ->assertNotFound()
+            ->assertSee('Page introuvable', false)
+            ->assertSee('Revenir à l’accueil', false);
     }
 
     public function test_robots_and_sitemap_are_served(): void
@@ -62,6 +85,28 @@ class SeoPagesTest extends TestCase
             ->assertSee('<loc>http://localhost/privacy</loc>', false)
             ->assertSee('<loc>http://localhost/terms</loc>', false)
             ->assertDontSee('/admin', false);
+    }
+
+    public function test_school_hosts_get_a_closed_robots_file_and_no_sitemap(): void
+    {
+        $this->get('http://palmiers.localhost/robots.txt')
+            ->assertOk()
+            ->assertSee('Disallow: /', false)
+            ->assertDontSee('Sitemap:', false);
+    }
+
+    public function test_analytics_is_exposed_only_when_configured_and_valid(): void
+    {
+        $this->withoutVite();
+
+        $this->get('/')->assertSee('"analytics":null', false);
+
+        config(['ardoise.analytics.provider' => 'plausible', 'ardoise.analytics.id' => 'ardoise.test', 'ardoise.analytics.src' => 'http://pas-https.test/s.js']);
+        $this->get('/')
+            ->assertSee('"analytics":{"provider":"plausible","id":"ardoise.test","src":null}', false);
+
+        config(['ardoise.analytics.provider' => 'inconnu']);
+        $this->get('/')->assertSee('"analytics":null', false);
     }
 
     public function test_legal_details_are_passed_to_the_page_without_secrets(): void

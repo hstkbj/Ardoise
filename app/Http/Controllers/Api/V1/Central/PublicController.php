@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Central\DemoRequest;
 use App\Models\Central\NewsletterSubscriber;
 use App\Models\Central\Plan;
+use App\Support\SpamGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -30,6 +31,12 @@ class PublicController extends Controller
     public function plans(): JsonResponse
     {
         return response()->json(['data' => Plan::where('status', 'active')->orderBy('id')->get()->map(fn ($p) => PlanController::present($p))]);
+    }
+
+    /** Jeton des formulaires publics : prouve le temps passé sur la page (voir SpamGuard). */
+    public function formToken(): JsonResponse
+    {
+        return response()->json(['data' => ['token' => SpamGuard::issueToken()]]);
     }
 
     public function demoRequest(Request $request): JsonResponse

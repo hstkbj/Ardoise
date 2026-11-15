@@ -181,6 +181,8 @@ export const publicApi = {
   /** GET /public/context — { central, school } selon l'adresse utilisée */
   context: () => http.get('/public/context').then(data),
   plans: () => http.get('/public/plans').then(data),
+  /** Jeton anti-spam des formulaires publics (prouve le temps passé sur la page). */
+  formToken: () => http.get('/public/form-token').then(data),
   demoRequest: (payload) => http.post('/public/demo-requests', payload).then((r) => r.data),
-  newsletter: (email) => http.post('/newsletter', { email }).then((r) => r.data),
+  newsletter: (email, extra = {}) => http.post('/newsletter', { email, ...extra }).then((r) => r.data),
 };
