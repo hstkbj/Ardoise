@@ -25,6 +25,9 @@ x-laravel: &laravel
     DB_PORT: "3306"
     DB_USERNAME: root
     QUEUE_CONNECTION: database
+    # Ici la file et le planificateur ont leurs propres services : pas de doublon dans « app »
+    ARDOISE_QUEUE: "false"
+    ARDOISE_SCHEDULER: "false"
   volumes:
     - storage:/var/www/html/storage
   restart: unless-stopped

@@ -75,7 +75,11 @@ http {
 }
 NGINX
 
-# Supervisor lance PHP-FPM et Nginx sans privilèges root.
+# Supervisor lance PHP-FPM, Nginx, le worker de file d'attente et le planificateur, sans privilèges root.
+# ARDOISE_QUEUE / ARDOISE_SCHEDULER=false désactive l'un ou l'autre (ex. avec docker compose,
+# où ils tournent dans leurs propres services).
+ENV ARDOISE_QUEUE=true \
+    ARDOISE_SCHEDULER=true
 RUN rm -f /etc/supervisord.conf && cat > /etc/supervisord.conf <<'SUP'
 [supervisord]
 nodaemon=true
@@ -94,6 +98,25 @@ autorestart=true
 
 [program:nginx]
 command=nginx -e /dev/stderr -g "daemon off;"
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+autorestart=true
+
+[program:queue]
+command=php /var/www/html/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+autostart=%(ENV_ARDOISE_QUEUE)s
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+autorestart=true
+stopwaitsecs=60
+
+[program:scheduler]
+command=php /var/www/html/artisan schedule:work
+autostart=%(ENV_ARDOISE_SCHEDULER)s
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
