@@ -93,7 +93,7 @@ async function onAction(key, row) {
       case 'download': return openFile(`/documents/${row.id}/download`);
       case 'invoice': return openFile(`/${res.endpoint}/${row.id}/invoice`);
       case 'delete': {
-        const ok = await ui.confirm({ title: `Supprimer ${res.singular} ?`, message: `« ${row[res.titleField] ?? ''} » sera supprimé définitivement.`, confirmLabel: 'Supprimer', danger: true });
+        const ok = await ui.confirm({ title: `Supprimer ${res.singular} ?`, message: `« ${row[res.titleField] ?? ''} » sera supprimé définitivement.${res.deleteWarning ? ' ' + res.deleteWarning : ''}`, confirmLabel: 'Supprimer', danger: true });
         if (!ok) return;
         await table.api.remove(row.id);
         ui.toast('Élément supprimé.');

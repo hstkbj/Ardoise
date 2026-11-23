@@ -704,7 +704,8 @@ export const RESOURCES = {
       { key: 'plan', label: 'Plan', optionsKey: 'plans' },
       { key: 'status', label: 'Statut', ...s(['active', 'trial', 'suspended']) },
     ],
-    rowActions: ['view', 'edit', 'resend-credentials', 'suspend', 'activate'],
+    rowActions: ['view', 'edit', 'resend-credentials', 'suspend', 'activate', 'delete'],
+    deleteWarning: 'Sa base de données (élèves, notes, paiements…), son domaine et son abonnement seront effacés. Cette action est irréversible : pensez à une sauvegarde.',
     customActions: {
       suspend: { label: 'Suspendre', icon: 'lock', danger: true, confirm: 'Les utilisateurs de ce tenant ne pourront plus se connecter.' },
       activate: { label: 'Activer', icon: 'unlock' },

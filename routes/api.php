@@ -86,7 +86,7 @@ Route::prefix('platform')->middleware('central')->group(function () {
         Route::post('tenants/{tenant}/activate', [TenantController::class, 'activate']);
         Route::post('tenants/{tenant}/resend-credentials', [TenantController::class, 'resendCredentials']);
         Route::get('tenants/{tenant}/stats', [TenantController::class, 'stats']);
-        Route::apiResource('tenants', TenantController::class)->except('destroy');
+        Route::apiResource('tenants', TenantController::class);
 
         Route::apiResource('plans', PlanController::class);
 

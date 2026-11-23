@@ -10,6 +10,7 @@ use App\Models\Central\Tenant;
 use App\Models\Tenant\User;
 use App\Services\PlatformStatsService;
 use App\Support\ListQuery;
+use App\Tenancy\DatabaseCreator;
 use App\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -100,6 +101,26 @@ class TenantController extends Controller
         $this->forgetHosts($tenant);
 
         return response()->json(['data' => self::present($tenant->load('plan', 'domains', 'latestUsage'))]);
+    }
+
+    /**
+     * Suppression définitive d'une école : sa base de données, son domaine, son abonnement et ses paiements.
+     * La base est supprimée d'abord : en cas d'échec, l'école reste en place et l'opération peut être relancée.
+     */
+    public function destroy(Tenant $tenant, DatabaseCreator $databases, TenantManager $tenancy): JsonResponse
+    {
+        $hosts = $tenant->domains()->pluck('domain');
+        $name = $tenant->name;
+
+        $tenancy->disconnect();
+        $databases->drop($tenant);
+        $tenant->delete();
+
+        foreach ($hosts as $host) {
+            Cache::forget("tenancy:host:{$host}");
+        }
+
+        return response()->json(['message' => 'École « '.$name.' » supprimée définitivement.']);
     }
 
     public function suspend(Tenant $tenant): JsonResponse
