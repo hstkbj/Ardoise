@@ -25,11 +25,13 @@ RUN composer dump-autoload --no-dev --optimize --no-scripts --ignore-platform-re
 FROM php:8.4-fpm-alpine AS app
 
 RUN apk add --no-cache nginx supervisor mariadb-client gzip \
-        icu-libs libzip libpng libjpeg-turbo freetype \
-    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev libzip-dev libpng-dev \
-        libjpeg-turbo-dev freetype-dev \
+        icu-libs libzip libpng libjpeg-turbo freetype libpq \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
+        icu-dev libzip-dev libpng-dev \
+        libjpeg-turbo-dev freetype-dev postgresql-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" pdo_mysql intl zip gd bcmath opcache \
+    && docker-php-ext-install -j"$(nproc)" \
+        pdo_mysql pdo_pgsql intl zip gd bcmath opcache \
     && apk del .build-deps \
     && mkdir -p /etc/my.cnf.d /var/log/nginx /var/lib/nginx/tmp \
     && printf '[client]\nskip-ssl\n' > /etc/my.cnf.d/ardoise.cnf \
