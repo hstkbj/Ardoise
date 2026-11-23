@@ -18,29 +18,18 @@ mkdir -p storage/app/public storage/framework/cache storage/framework/sessions \
     storage/framework/views storage/logs bootstrap/cache database/tenants
 
 if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
-    echo "==> Migrations (base centrale)"
+    echo "==> Migrations de la base centrale"
     php artisan migrate --force
-    echo "==> Migrations (bases des écoles)"
-    php artisan tenants:migrate
-    echo "==> Migrations (Seeder des donner)"
+
+    echo "==> Initialisation des données centrales"
     php artisan db:seed --force
-    
-    echo "========================================"
-    echo "MIGRATIONS DES BASES TENANTS"
-    echo "========================================"
 
-    php artisan ardoise:demo --fresh 
+    echo "==> Migrations des bases des établissements"
+    php artisan tenants:migrate
 
-    echo "========================================"
-    echo "SEEDERS DES BASES TENANTS"
-    echo "========================================"
-
-    if [ "${RUN_TENANT_SEEDERS:-false}" = "true" ]; then
-        echo "ATTENTION : aucune commande générique de seeding tenant n'est exécutée."
-        echo "Configurez ici la commande tenant:seed adaptée à votre projet."
-    fi
-    
-    php artisan storage:link --force || true
+    echo "==> Création du lien de stockage"
+    php artisan storage:link || true
 fi
+
 
 exec "$@"
