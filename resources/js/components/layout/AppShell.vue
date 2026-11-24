@@ -25,6 +25,9 @@ const mobileOpen = ref(false);
 const menuOpen = ref(false);
 const unread = ref(0);
 
+/** Guide de mise en route : réservé à l'administration de l'école (pas à la console de la plateforme). */
+const canSetup = computed(() => !auth.isPlatform && !auth.requiresPayment && auth.can('classes.create') && auth.can('students.create') && auth.can('teachers.create'));
+
 /** Abonnement impayé après le délai de grâce : seule la page Abonnement reste dans le menu. */
 function isVisible(item) {
   if (auth.requiresPayment) return item.to === '/admin/billing';
@@ -133,6 +136,7 @@ onUnmounted(() => {
           </button>
           <div v-if="menuOpen" role="menu" class="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-white py-1 shadow-lg">
             <RouterLink v-if="!auth.isPlatform" to="/profile" role="menuitem" class="flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-ground"><AppIcon name="user" class="size-4 text-subtle" />Mon profil</RouterLink>
+            <RouterLink v-if="canSetup" to="/admin/setup" role="menuitem" class="flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-ground"><AppIcon name="check-circle" class="size-4 text-subtle" />Mise en route de l’école</RouterLink>
             <RouterLink v-if="auth.isPlatform || auth.security?.two_factor_available" to="/security" role="menuitem" class="flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-ground"><AppIcon name="shield" class="size-4 text-subtle" />Sécurité du compte</RouterLink>
             <button type="button" role="menuitem" class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-danger-600 hover:bg-danger-50" @click="logout"><AppIcon name="logout" class="size-4" />Se déconnecter</button>
           </div>

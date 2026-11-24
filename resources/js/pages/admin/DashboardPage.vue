@@ -21,14 +21,15 @@ const auth = useAuthStore();
 const ctx = useContextStore();
 const router = useRouter();
 
-// École encore vide : on propose le guide de mise en route (une seule redirection automatique, puis un bandeau)
+// École encore vide : le guide de mise en route s'affiche à la place du tableau de bord (une fois par session,
+// puis un bandeau ; le lien reste dans le menu du compte)
 const canSetup = auth.can('classes.create') && auth.can('students.create') && auth.can('teachers.create');
 const setup = useAsync(() => (canSetup ? importsApi.setupStatus() : null), { immediate: true });
 watch(() => setup.data.value, (status) => {
   if (!status?.is_empty) return;
   try {
-    if (localStorage.getItem('ardoise.setup.seen')) return;
-    localStorage.setItem('ardoise.setup.seen', '1');
+    if (sessionStorage.getItem('ardoise.setup.seen')) return;
+    sessionStorage.setItem('ardoise.setup.seen', '1');
     router.replace('/admin/setup');
   } catch {
     // stockage indisponible : le bandeau suffit

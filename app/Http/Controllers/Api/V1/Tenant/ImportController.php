@@ -79,7 +79,8 @@ class ImportController extends Controller
 
         $result = $import->run(SpreadsheetReader::readSheets($file->getRealPath(), $file->getClientOriginalName()), $request->boolean('dry_run'));
 
-        $teachers = $result['teachers_created'].' enseignant(s) créé(s)'.($result['teachers_linked'] ? ", {$result['teachers_linked']} rattaché(s) à un nouvel établissement" : '');
+        $campuses = $result['campuses_created'] ? "{$result['campuses_created']} établissement(s) créé(s), " : '';
+        $teachers = $campuses.$result['teachers_created'].' enseignant(s) créé(s)'.($result['teachers_linked'] ? ", {$result['teachers_linked']} rattaché(s) à un nouvel établissement" : '');
         $summary = "{$teachers}, {$result['subjects_created']} matière(s), {$result['classes_created']} classe(s), {$result['assignments']} affectation(s), {$result['students_created']} élève(s) inscrit(s) et {$result['students_updated']} mis à jour, {$result['parents_created']} parent(s) créé(s).";
 
         return response()->json([

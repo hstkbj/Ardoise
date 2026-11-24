@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Tenant\Campus;
 use App\Models\Tenant\ClassRoom;
 use App\Models\Tenant\ClassSubject;
 use App\Models\Tenant\Level;
@@ -67,6 +68,28 @@ class SchoolSetupImportTest extends TestCase
             $this->assertTrue($teacher->campuses->contains('id', $class->campus_id));
             $this->assertTrue($subject->teachers->contains('id', $teacher->id));
             $this->assertSame(2.0, (float) ClassSubject::where('class_room_id', $class->id)->where('subject_id', $subject->id)->value('coefficient'));
+        });
+    }
+
+    public function test_unknown_campuses_are_created_and_the_teacher_is_linked_to_them(): void
+    {
+        $this->createSchool();
+        $this->seedSchoolData();
+        $level = $this->inSchool(fn () => Level::where('name', '5e')->value('name'));
+        $sheets = $this->sheets($level);
+        $sheets['Enseignants'][1][4] = 'Site Calavi';
+        $sheets['Classes'][1][2] = 'Site Calavi';
+        $sheets['Affectations'][1][1] = 'Site Calavi';
+
+        $this->withToken($this->tokenFor())->post('/api/v1/imports/setup', ['file' => $this->workbook($sheets)], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonPath('data.campuses_created', 1);
+
+        $this->inSchool(function () {
+            $campus = Campus::where('name', 'Site Calavi')->firstOrFail();
+            $this->assertSame('SITECALAVI', $campus->code);
+            $this->assertSame($campus->id, ClassRoom::where('name', 'Classe Test')->value('campus_id'));
+            $this->assertTrue(Teacher::where('last_name', 'NOUVEAU')->firstOrFail()->campuses->contains('id', $campus->id));
         });
     }
 

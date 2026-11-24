@@ -12,12 +12,14 @@ use App\Models\Tenant\Student;
 use App\Models\Tenant\Subject;
 use App\Models\Tenant\Teacher;
 use App\Services\AccountService;
+use App\Services\Billing\PlanLimits;
 use App\Support\Phone;
 use App\Support\Spreadsheet\CellParser;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
@@ -55,7 +57,7 @@ class SchoolSetupImport
     /** @var Collection<int, ClassRoom> */
     protected Collection $classes;
 
-    public function __construct(protected StudentImport $students, protected AccountService $accounts) {}
+    public function __construct(protected StudentImport $students, protected AccountService $accounts, protected PlanLimits $limits) {}
 
     /** @return array<string, array<int, array<int, string>>> nom de la feuille => lignes (en-têtes d'abord) */
     public static function templateSheets(): array
@@ -67,7 +69,7 @@ class SchoolSetupImport
                 ['2. Gardez la première ligne de chaque feuille (les en-têtes) et supprimez la ligne d’exemple.'],
                 ['3. Un enseignant, une matière ou une classe cité dans une feuille est d’abord cherché : s’il existe déjà, il est réutilisé ; sinon il est créé avec le minimum (nom et prénoms).'],
                 ['4. Un enseignant retrouvé dans un autre établissement garde ses établissements actuels : le nouveau est simplement ajouté.'],
-                ['5. Établissement : indiquez son nom ou son code. Vous pouvez le laisser vide si l’école n’en a qu’un. Plusieurs établissements se séparent par une virgule.'],
+                ['5. Établissement : indiquez son nom. S’il n’existe pas encore, il est créé (dans la limite de votre plan) ; vous pourrez compléter son adresse ensuite. Vous pouvez laisser la colonne vide si l’école n’en a qu’un. Plusieurs établissements se séparent par une virgule.'],
                 ['6. Niveau : un des niveaux de l’école (CP1, 6e, 2nde…). Année scolaire : elle doit être ouverte pour inscrire des élèves.'],
                 ['7. Envoyez le fichier dans Ardoise : « Vérifier » contrôle tout sans rien enregistrer, « Importer » enregistre.'],
             ],
@@ -109,7 +111,7 @@ class SchoolSetupImport
         }
 
         $this->errors = [];
-        $this->stats = array_fill_keys(['teachers_created', 'teachers_linked', 'subjects_created', 'classes_created', 'classes_updated', 'assignments', 'students_created', 'students_updated', 'parents_created', 'parents_linked'], 0);
+        $this->stats = array_fill_keys(['campuses_created', 'teachers_created', 'teachers_linked', 'subjects_created', 'classes_created', 'classes_updated', 'assignments', 'students_created', 'students_updated', 'parents_created', 'parents_linked'], 0);
 
         $connection = DB::connection('tenant');
         $connection->beginTransaction();
@@ -162,7 +164,7 @@ class SchoolSetupImport
                 continue;
             }
 
-            $campusIds = $this->campusIds('Enseignants', $row, $this->cell($row, 'etablissement', 'etablissements', 'ecole', 'site'), required: false);
+            $campusIds = $this->campusIds('Enseignants', $row, $this->cell($row, 'etablissement', 'etablissements', 'ecole', 'site'), required: false, create: true);
             $teacher = $this->findOrCreateTeacher($first, $last, $this->cell($row, 'e_mail', 'email', 'mail'), $this->cell($row, 'telephone', 'tel'), $campusIds);
 
             foreach ($this->splitList($this->cell($row, 'matieres', 'matiere')) as $subjectName) {
@@ -210,7 +212,7 @@ class SchoolSetupImport
                 continue;
             }
 
-            $campusIds = $this->campusIds('Classes', $row, $this->cell($row, 'etablissement', 'ecole', 'site'), required: true);
+            $campusIds = $this->campusIds('Classes', $row, $this->cell($row, 'etablissement', 'ecole', 'site'), required: true, create: true);
 
             if (count($campusIds) !== 1) {
                 count($campusIds) > 1 && $this->fail('Classes', $row, 'Une classe appartient à un seul établissement.');
@@ -491,11 +493,12 @@ class SchoolSetupImport
 
     /**
      * Établissements d'une cellule (noms ou codes séparés par une virgule). Vide : l'unique établissement de l'école,
-     * sinon une erreur si « required ».
+     * sinon une erreur si « required ». Un établissement inconnu est créé si « create » (feuilles Enseignants et Classes),
+     * sinon c'est une erreur (simple recherche, ex. feuille Affectations).
      *
      * @return array<int, int>
      */
-    protected function campusIds(string $sheet, array $row, string $cell, bool $required): array
+    protected function campusIds(string $sheet, array $row, string $cell, bool $required, bool $create = false): array
     {
         $names = $this->splitList($cell);
 
@@ -514,16 +517,51 @@ class SchoolSetupImport
         foreach ($names as $name) {
             $campus = $this->campuses->first(fn (Campus $c) => in_array(self::key($name), [self::key($c->name), self::key($c->code)], true));
 
-            if (! $campus) {
+            if (! $campus && $create) {
+                $campus = $this->createCampus($sheet, $row, $name);
+            } elseif (! $campus) {
                 $this->fail($sheet, $row, "Établissement « {$name} » introuvable. Établissements de l’école : ".($this->campuses->pluck('name')->implode(', ') ?: 'aucun').'.');
-
-                continue;
             }
 
-            $ids[] = $campus->id;
+            $campus && $ids[] = $campus->id;
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /** Établissement cité mais absent : créé avec son nom (adresse, ville… à compléter plus tard), dans la limite du plan. */
+    protected function createCampus(string $sheet, array $row, string $name): ?Campus
+    {
+        try {
+            $this->limits->ensureCanAdd('schools');
+        } catch (ValidationException $e) {
+            $this->fail($sheet, $row, "Établissement « {$name} » à créer : ".collect($e->errors())->flatten()->first());
+
+            return null;
+        }
+
+        $campus = Campus::create([
+            'name' => mb_substr($name, 0, 150),
+            'code' => $this->uniqueCampusCode($name),
+            'status' => 'active',
+        ]);
+        $this->campuses->push($campus);
+        $this->stats['campuses_created']++;
+
+        return $campus;
+    }
+
+    protected function uniqueCampusCode(string $name): string
+    {
+        $base = Str::upper(Str::substr(preg_replace('/[^A-Za-z0-9]/', '', Str::ascii($name)), 0, 12)) ?: 'ECOLE';
+        $code = $base;
+        $i = 2;
+
+        while (Campus::withTrashed()->where('code', $code)->exists()) {
+            $code = $base.$i++;
+        }
+
+        return $code;
     }
 
     // ── Utilitaires ────────────────────────────────────────────────────────

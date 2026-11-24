@@ -28,7 +28,7 @@ const items = computed(() => [
 const SHEETS = [
   ['Enseignants', 'Nom, prénoms, e-mail, téléphone, établissements, matières.'],
   ['Matières', 'Nom, code, catégorie, coefficient, enseignant.'],
-  ['Classes', 'Nom, niveau, établissement, capacité, professeur principal (créé s’il n’existe pas).'],
+  ['Classes', 'Nom, niveau, établissement (créé s’il n’existe pas), capacité, professeur principal (créé s’il n’existe pas).'],
   ['Affectations', 'Quelle matière, quel enseignant et quel coefficient dans chaque classe.'],
   ['Élèves', 'Identité, classe et premier parent (retrouvé par téléphone, sinon créé avec son code d’accès).'],
   ['Parents', 'Un parent lié à un ou plusieurs élèves par leur matricule.'],
@@ -99,6 +99,7 @@ function imported(result) {
       <section v-if="last" class="card p-5 sm:p-6">
         <h2 class="mb-3 font-semibold">Résultat du dernier import</h2>
         <dl class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+          <div><dt class="text-muted">Établissements créés</dt><dd class="font-semibold">{{ last.campuses_created }}</dd></div>
           <div><dt class="text-muted">Enseignants créés</dt><dd class="font-semibold">{{ last.teachers_created }}</dd></div>
           <div><dt class="text-muted">Enseignants rattachés</dt><dd class="font-semibold">{{ last.teachers_linked }}</dd></div>
           <div><dt class="text-muted">Matières créées</dt><dd class="font-semibold">{{ last.subjects_created }}</dd></div>
