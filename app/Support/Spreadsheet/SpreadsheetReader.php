@@ -32,6 +32,38 @@ class SpreadsheetReader
         return self::withHeaders($matrix);
     }
 
+    /**
+     * Classeur Excel à plusieurs feuilles : lignes de chaque feuille, indexées par nom de feuille
+     * normalisé (« Élèves » → « eleves »). Une feuille vide donne une liste vide.
+     *
+     * @return array<string, array<int, array<string, string>>>
+     */
+    public static function readSheets(string $path, string $originalName): array
+    {
+        if (strtolower(pathinfo($originalName, PATHINFO_EXTENSION)) !== 'xlsx') {
+            throw ValidationException::withMessages(['file' => 'Envoyez le classeur Excel (.xlsx) du modèle : un fichier CSV ne peut contenir qu’une seule feuille.']);
+        }
+
+        $zip = self::openZip($path);
+
+        try {
+            $strings = self::sharedStrings($zip);
+            $sheets = [];
+
+            foreach (self::sheetPaths($zip) as $name => $sheetPath) {
+                $xml = $zip->getFromName($sheetPath);
+
+                if ($xml !== false) {
+                    $sheets[self::normalizeHeader($name)] = self::withHeaders(self::parseSheet($xml, $strings), true);
+                }
+            }
+
+            return $sheets;
+        } finally {
+            $zip->close();
+        }
+    }
+
     /** « Prénom(s) » → « prenoms », « N° de téléphone » → « n_de_telephone ». */
     public static function normalizeHeader(string $header): string
     {
@@ -42,7 +74,7 @@ class SpreadsheetReader
      * @param  array<int, array<int, string>>  $matrix
      * @return array<int, array<string, string>>
      */
-    protected static function withHeaders(array $matrix): array
+    protected static function withHeaders(array $matrix, bool $allowEmpty = false): array
     {
         // Première ligne non vide = en-têtes
         while ($matrix && ! array_filter(reset($matrix), fn ($v) => trim((string) $v) !== '')) {
@@ -50,6 +82,10 @@ class SpreadsheetReader
         }
 
         if (! $matrix) {
+            if ($allowEmpty) {
+                return [];
+            }
+
             throw ValidationException::withMessages(['file' => 'Le fichier est vide.']);
         }
 
@@ -80,6 +116,10 @@ class SpreadsheetReader
         }
 
         if (! $rows) {
+            if ($allowEmpty) {
+                return [];
+            }
+
             throw ValidationException::withMessages(['file' => 'Aucune ligne de données sous les en-têtes.']);
         }
 
@@ -118,6 +158,23 @@ class SpreadsheetReader
     /** @return array<int, array<int, string>> lignes numérotées comme dans Excel */
     protected static function readXlsx(string $path): array
     {
+        $zip = self::openZip($path);
+
+        try {
+            $sheetXml = $zip->getFromName(self::firstSheetPath($zip));
+
+            if ($sheetXml === false) {
+                throw ValidationException::withMessages(['file' => 'Feuille Excel introuvable.']);
+            }
+
+            return self::parseSheet($sheetXml, self::sharedStrings($zip));
+        } finally {
+            $zip->close();
+        }
+    }
+
+    protected static function openZip(string $path): ZipArchive
+    {
         if (! class_exists(ZipArchive::class)) {
             throw ValidationException::withMessages(['file' => 'Les fichiers Excel ne peuvent pas être lus sur ce serveur (extension zip manquante) : enregistrez-le au format CSV.']);
         }
@@ -128,43 +185,71 @@ class SpreadsheetReader
             throw ValidationException::withMessages(['file' => 'Fichier Excel illisible.']);
         }
 
-        try {
-            $strings = self::sharedStrings($zip);
-            $sheetXml = $zip->getFromName(self::firstSheetPath($zip));
+        return $zip;
+    }
 
-            if ($sheetXml === false) {
-                throw ValidationException::withMessages(['file' => 'Feuille Excel introuvable.']);
+    /**
+     * @param  array<int, string>  $strings
+     * @return array<int, array<int, string>> lignes numérotées comme dans Excel
+     */
+    protected static function parseSheet(string $sheetXml, array $strings): array
+    {
+        $sheet = self::xml($sheetXml);
+        $matrix = [];
+
+        foreach ($sheet->sheetData->row ?? [] as $row) {
+            $line = (int) $row['r'];
+            $cells = [];
+
+            foreach ($row->c as $cell) {
+                $index = self::columnIndex((string) $cell['r']);
+                $type = (string) $cell['t'];
+
+                $cells[$index] = match ($type) {
+                    's' => $strings[(int) $cell->v] ?? '',
+                    'inlineStr' => self::richText($cell->is),
+                    'b' => ((string) $cell->v) === '1' ? 'oui' : 'non',
+                    default => self::number((string) $cell->v),
+                };
             }
 
-            $sheet = self::xml($sheetXml);
-            $matrix = [];
-
-            foreach ($sheet->sheetData->row ?? [] as $row) {
-                $line = (int) $row['r'];
-                $cells = [];
-
-                foreach ($row->c as $cell) {
-                    $index = self::columnIndex((string) $cell['r']);
-                    $type = (string) $cell['t'];
-
-                    $cells[$index] = match ($type) {
-                        's' => $strings[(int) $cell->v] ?? '',
-                        'inlineStr' => self::richText($cell->is),
-                        'b' => ((string) $cell->v) === '1' ? 'oui' : 'non',
-                        default => self::number((string) $cell->v),
-                    };
-                }
-
-                if ($cells) {
-                    $max = max(array_keys($cells));
-                    $matrix[$line] = array_map(fn ($i) => $cells[$i] ?? '', range(0, $max));
-                }
+            if ($cells) {
+                $max = max(array_keys($cells));
+                $matrix[$line] = array_map(fn ($i) => $cells[$i] ?? '', range(0, $max));
             }
-
-            return $matrix;
-        } finally {
-            $zip->close();
         }
+
+        return $matrix;
+    }
+
+    /** @return array<string, string> nom de la feuille => chemin dans l'archive, dans l'ordre du classeur */
+    protected static function sheetPaths(ZipArchive $zip): array
+    {
+        $workbook = $zip->getFromName('xl/workbook.xml');
+        $rels = $zip->getFromName('xl/_rels/workbook.xml.rels');
+
+        if ($workbook === false || $rels === false) {
+            return ['Feuille1' => 'xl/worksheets/sheet1.xml'];
+        }
+
+        $targets = [];
+
+        foreach (self::xml($rels)->Relationship as $relation) {
+            $target = ltrim((string) $relation['Target'], '/');
+            $targets[(string) $relation['Id']] = str_starts_with($target, 'xl/') ? $target : 'xl/'.$target;
+        }
+
+        $paths = [];
+
+        foreach (self::xml($workbook)->sheets->sheet ?? [] as $sheet) {
+            $relId = (string) $sheet->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'];
+
+            if (isset($targets[$relId])) {
+                $paths[(string) $sheet['name']] = $targets[$relId];
+            }
+        }
+
+        return $paths;
     }
 
     /** @return array<int, string> */

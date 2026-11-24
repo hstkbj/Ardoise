@@ -168,6 +168,9 @@ Route::middleware(['tenant', 'auth:sanctum', 'tenant.user', 'tenant.active', 'ac
         Route::apiResource('classes', Tenant\ClassRoomController::class);
 
         // Import (CSV ou Excel) : modèle à remplir, puis envoi du fichier (?dry_run=1 pour vérifier sans enregistrer)
+        Route::get('imports/setup/status', [Tenant\ImportController::class, 'setupStatus']);
+        Route::get('imports/setup/template', [Tenant\ImportController::class, 'setupTemplate']);
+        Route::post('imports/setup', [Tenant\ImportController::class, 'setup']);
         Route::get('imports/{type}/template', [Tenant\ImportController::class, 'template'])->whereIn('type', ['students', 'payments']);
         Route::post('imports/students', [Tenant\ImportController::class, 'students']);
         Route::post('imports/payments', [Tenant\ImportController::class, 'payments'])->middleware('feature:finance');

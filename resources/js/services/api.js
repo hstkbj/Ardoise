@@ -139,6 +139,8 @@ export function securityApi(platform = false) {
  */
 export const importsApi = {
   templatePath: (type) => `/imports/${type}/template`,
+  /** Ce que l'école a déjà enregistré (guide de première connexion). */
+  setupStatus: () => http.get('/imports/setup/status').then((r) => r.data.data),
   upload: (endpoint, file, options = {}) => {
     const form = new FormData();
     form.append('file', file);

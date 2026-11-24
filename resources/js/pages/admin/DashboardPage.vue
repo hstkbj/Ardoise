@@ -1,5 +1,6 @@
 <script setup>
 import { computed, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import PageHeader from '@/components/ui/PageHeader.vue';
 import StatsCard from '@/components/ui/StatsCard.vue';
 import BarChart from '@/components/ui/BarChart.vue';
@@ -9,7 +10,7 @@ import ErrorState from '@/components/ui/ErrorState.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import PaymentTable from '@/components/domain/PaymentTable.vue';
-import { dashboardApi } from '@/services/api';
+import { dashboardApi, importsApi } from '@/services/api';
 import { createResource } from '@/services/resource';
 import { useAsync } from '@/composables/useAsync';
 import { useAuthStore } from '@/stores/auth';
@@ -18,6 +19,21 @@ import { formatDate, formatMoney, formatNumber } from '@/utils/format';
 
 const auth = useAuthStore();
 const ctx = useContextStore();
+const router = useRouter();
+
+// École encore vide : on propose le guide de mise en route (une seule redirection automatique, puis un bandeau)
+const canSetup = auth.can('classes.create') && auth.can('students.create') && auth.can('teachers.create');
+const setup = useAsync(() => (canSetup ? importsApi.setupStatus() : null), { immediate: true });
+watch(() => setup.data.value, (status) => {
+  if (!status?.is_empty) return;
+  try {
+    if (localStorage.getItem('ardoise.setup.seen')) return;
+    localStorage.setItem('ardoise.setup.seen', '1');
+    router.replace('/admin/setup');
+  } catch {
+    // stockage indisponible : le bandeau suffit
+  }
+});
 const params = () => ({ school_id: ctx.schoolId || undefined });
 
 const { data, loading, error, run } = useAsync(() => dashboardApi.school(params()), { immediate: true });
@@ -38,6 +54,15 @@ const greeting = new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
         <RouterLink v-if="auth.can('payments.create') && auth.hasFeature('finance')" to="/admin/payments/create" class="btn btn-primary"><AppIcon name="wallet" class="size-4" />Encaisser</RouterLink>
       </template>
     </PageHeader>
+
+    <div v-if="setup.data.value?.is_empty" class="card flex flex-wrap items-center gap-4 border-brand-200 bg-mint p-5">
+      <AppIcon name="check-circle" class="size-6 shrink-0 text-brand-700" />
+      <div class="min-w-0 flex-1">
+        <p class="font-semibold">Bienvenue ! Configurons votre école en quelques minutes.</p>
+        <p class="text-sm text-muted">Importez vos enseignants, matières, classes, élèves et parents avec un seul fichier Excel.</p>
+      </div>
+      <RouterLink to="/admin/setup" class="btn btn-primary">Commencer</RouterLink>
+    </div>
 
     <div v-if="error" class="card"><ErrorState :message="error.message" @retry="run" /></div>
     <template v-else>

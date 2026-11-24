@@ -54,7 +54,7 @@ class StudentImport extends SpreadsheetImport
             $matricule = $this->cell($row, 'matricule');
             $gender = CellParser::gender($this->cell($row, 'sexe', 'genre'));
             $birthDate = CellParser::date($this->cell($row, 'date_de_naissance', 'date_naissance', 'ne_le', 'nee_le'));
-            $class = $this->findClass($classes, $this->cell($row, 'classe'), $this->cell($row, 'etablissement', 'ecole', 'site'), $row);
+            $class = $this->findClass($classes, $this->cell($row, 'classe'), $this->cell($row, 'etablissement', 'ecole', 'site'), $row, $year);
 
             if ($this->cell($row, 'nom') === '' || $this->cell($row, 'prenoms', 'prenom') === '') {
                 $this->error($row, 'Nom et prénoms obligatoires.');
@@ -138,7 +138,7 @@ class StudentImport extends SpreadsheetImport
         return $summary;
     }
 
-    protected function findClass($classes, string $name, string $campus, array $row): ?ClassRoom
+    protected function findClass($classes, string $name, string $campus, array $row, ?AcademicYear $year): ?ClassRoom
     {
         if ($name === '') {
             $this->error($row, 'Classe obligatoire.');

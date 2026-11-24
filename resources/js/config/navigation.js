@@ -8,6 +8,7 @@ export const ADMIN_NAV = [
     label: 'Pilotage',
     items: [
       { label: 'Tableau de bord', to: '/admin/dashboard', icon: 'dashboard' },
+      { label: 'Mise en route', to: '/admin/setup', icon: 'check-circle', permission: 'classes.create' },
       { label: 'Établissements', to: '/admin/schools', icon: 'building', permission: 'schools.view' },
       { label: 'Années scolaires', to: '/admin/academic-years', icon: 'calendar', permission: 'academic_years.view' },
     ],

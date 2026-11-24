@@ -32,6 +32,7 @@ const p = {
   ticket: () => import('@/pages/shared/TicketShowPage.vue'),
 
   adminDashboard: () => import('@/pages/admin/DashboardPage.vue'),
+  setup: () => import('@/pages/admin/SetupPage.vue'),
   grades: () => import('@/pages/admin/GradesEntryPage.vue'),
   reenrollment: () => import('@/pages/admin/ReenrollmentPage.vue'),
   classSubjects: () => import('@/pages/admin/ClassSubjectsPage.vue'),
@@ -98,6 +99,7 @@ const routes = [
     children: [
       { path: '', redirect: `${A}/dashboard` },
       { path: 'dashboard', component: p.adminDashboard, meta: { title: 'Tableau de bord' } },
+      { path: 'setup', component: p.setup, meta: { permission: 'classes.create', title: 'Mise en route de l’école' } },
       ...resourceRoutes('schools', 'schools', { base: `${A}/schools`, permission: 'schools' }),
       ...resourceRoutes('academic-years', 'academic-years', { base: `${A}/academic-years`, permission: 'academic_years', only: ['index', 'create', 'edit'] }),
       { path: 'classes/:id(\\d+)/subjects', component: p.classSubjects, meta: { permission: 'classes.view', title: 'Matières de la classe' } },
