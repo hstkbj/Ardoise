@@ -108,14 +108,14 @@ export const RESOURCES = {
     titleField: 'name',
     columns: [
       { key: 'name', label: 'Classe', type: 'person', sub: 'level', sortable: true },
-      { key: 'school_name', label: 'Établissement' },
+      { key: 'school_name', label: 'Établissement', multiCampus: true },
       { key: 'head_teacher', label: 'Professeur principal' },
       { key: 'students_count', label: 'Effectif', type: 'capacity', align: 'right', sortable: true },
       { key: 'room', label: 'Salle' },
       { key: 'status', label: 'Statut', type: 'status' },
     ],
     filters: [
-      { key: 'school_id', label: 'Établissement', optionsKey: 'schools' },
+      { key: 'school_id', label: 'Établissement', optionsKey: 'schools', multiCampus: true },
       { key: 'level', label: 'Niveau', optionsKey: 'levels' },
     ],
     form: [

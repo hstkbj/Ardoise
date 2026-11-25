@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\AcademicYear;
 use App\Models\Tenant\Campus;
 use App\Models\Tenant\ClassRoom;
+use App\Models\Tenant\Level;
 use App\Models\Tenant\ParentProfile;
 use App\Models\Tenant\Student;
 use App\Models\Tenant\Subject;
@@ -66,7 +67,13 @@ class ImportController extends Controller
     {
         $this->authorizeSetup();
 
-        return XlsxWriter::download('modele-mise-en-route-ecole.xlsx', SchoolSetupImport::templateSheets());
+        // Listes déroulantes : niveaux et établissements propres à l'école, cycles et jours d'Ardoise
+        $lists = SchoolSetupImport::templateLists(
+            Level::orderBy('position')->pluck('name')->all(),
+            Campus::where('status', 'active')->orderBy('name')->pluck('name')->all(),
+        );
+
+        return XlsxWriter::download('modele-mise-en-route-ecole.xlsx', SchoolSetupImport::templateSheets(), $lists);
     }
 
     public function setup(Request $request, SchoolSetupImport $import): JsonResponse
@@ -81,7 +88,7 @@ class ImportController extends Controller
 
         $campuses = $result['campuses_created'] ? "{$result['campuses_created']} établissement(s) créé(s), " : '';
         $teachers = $campuses.$result['teachers_created'].' enseignant(s) créé(s)'.($result['teachers_linked'] ? ", {$result['teachers_linked']} rattaché(s) à un nouvel établissement" : '');
-        $summary = "{$teachers}, {$result['subjects_created']} matière(s), {$result['classes_created']} classe(s), {$result['assignments']} affectation(s), {$result['students_created']} élève(s) inscrit(s) et {$result['students_updated']} mis à jour, {$result['parents_created']} parent(s) créé(s).";
+        $summary = "{$teachers}, {$result['subjects_created']} matière(s), {$result['classes_created']} classe(s), {$result['assignments']} affectation(s), {$result['timetable_entries']} cours à l’emploi du temps, {$result['students_created']} élève(s) inscrit(s) et {$result['students_updated']} mis à jour, {$result['parents_created']} parent(s) créé(s).";
 
         return response()->json([
             'message' => ($result['dry_run'] ? 'Fichier valide, rien n’est enregistré : ' : 'Import terminé : ').$summary,

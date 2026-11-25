@@ -8,6 +8,8 @@ use App\Models\Tenant\ClassSubject;
 use App\Models\Tenant\Level;
 use App\Models\Tenant\Subject;
 use App\Models\Tenant\Teacher;
+use App\Models\Tenant\TimetableEntry;
+use App\Services\Imports\SchoolSetupImport;
 use App\Support\Spreadsheet\XlsxWriter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -169,5 +171,85 @@ class SchoolSetupImportTest extends TestCase
         $this->seedSchoolData();
 
         $this->withToken($this->tokenFor('teacher'))->getJson('/api/v1/imports/setup/status')->assertForbidden();
+    }
+
+    public function test_subject_cycle_and_referent_teacher_are_imported_and_copied_to_new_classes(): void
+    {
+        $this->createSchool();
+        $this->seedSchoolData();
+        $level = $this->inSchool(fn () => Level::where('name', '5e')->value('name'));
+        $sheets = $this->sheets($level);
+        $sheets['Matières'] = [['Matière', 'Code', 'Cycle', 'Catégorie', 'Coefficient', 'Enseignant référent'], ['Latin', 'LAT', 'Collège', 'Lettres', '2', 'Paul NOUVEAU']];
+
+        $this->withToken($this->tokenFor())->post('/api/v1/imports/setup', ['file' => $this->workbook($sheets)], ['Accept' => 'application/json'])->assertOk();
+
+        $this->inSchool(function () {
+            $subject = Subject::where('name', 'Latin')->firstOrFail();
+            $teacher = Teacher::where('last_name', 'NOUVEAU')->firstOrFail();
+
+            $this->assertSame('Collège', $subject->level);
+            $this->assertSame($teacher->id, $subject->teacher_id);
+            $this->assertTrue($subject->teachers->contains('id', $teacher->id));
+
+            // La classe créée reçoit la matière du cycle avec son référent
+            $class = ClassRoom::where('name', 'Classe Test')->firstOrFail();
+            $this->assertSame($teacher->id, ClassSubject::where('class_room_id', $class->id)->where('subject_id', $subject->id)->value('teacher_id'));
+        });
+    }
+
+    public function test_an_unknown_cycle_is_refused(): void
+    {
+        $this->createSchool();
+        $this->seedSchoolData();
+        $sheets = ['Matières' => [['Matière', 'Cycle'], ['Latin', 'Université']]];
+
+        $this->withToken($this->tokenFor())->post('/api/v1/imports/setup', ['file' => $this->workbook($sheets)], ['Accept' => 'application/json'])
+            ->assertUnprocessable();
+
+        $this->inSchool(fn () => $this->assertFalse(Subject::where('name', 'Latin')->exists()));
+    }
+
+    public function test_the_timetable_sheet_creates_slots_and_refuses_overlaps(): void
+    {
+        $this->createSchool();
+        $this->seedSchoolData();
+        $level = $this->inSchool(fn () => Level::where('name', '5e')->value('name'));
+        $sheets = $this->sheets($level);
+        $head = ['Classe', 'Établissement', 'Jour', 'Début', 'Fin', 'Matière', 'Enseignant', 'Salle'];
+        $sheets['Emploi du temps'] = [$head, ['Classe Test', '', 'Lundi', '8h', '09:00', 'Anglais', 'Paul NOUVEAU', 'S1'], ['Classe Test', '', 'mardi', '08:00', '09:30', 'Anglais', '', '']];
+
+        $this->withToken($this->tokenFor())->post('/api/v1/imports/setup', ['file' => $this->workbook($sheets)], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonPath('data.timetable_entries', 2);
+
+        $this->inSchool(function () {
+            $teacher = Teacher::where('last_name', 'NOUVEAU')->firstOrFail();
+            $monday = TimetableEntry::where('day_of_week', 0)->firstOrFail();
+            $this->assertSame('08:00', $monday->starts_at);
+            $this->assertSame($teacher->id, $monday->teacher_id);
+            // Sans enseignant dans la ligne : celui de la matière dans la classe
+            $this->assertSame($teacher->id, TimetableEntry::where('day_of_week', 1)->value('teacher_id'));
+        });
+
+        // Un second cours qui chevauche le premier est refusé, rien n'est enregistré
+        $sheets['Emploi du temps'] = [$head, ['Classe Test', '', 'Lundi', '08:30', '09:30', 'Anglais', '', '']];
+        $this->withToken($this->tokenFor())->post('/api/v1/imports/setup', ['file' => $this->workbook($sheets)], ['Accept' => 'application/json'])->assertUnprocessable();
+    }
+
+    public function test_the_template_has_dropdowns_for_cycle_and_days(): void
+    {
+        $xlsx = XlsxWriter::build(SchoolSetupImport::templateSheets(), SchoolSetupImport::templateLists(['6e'], ['Collège Akoma']));
+        $path = tempnam(sys_get_temp_dir(), 'tpl');
+        file_put_contents($path, $xlsx);
+        $zip = new \ZipArchive;
+        $zip->open($path);
+        $names = array_keys(SchoolSetupImport::templateSheets());
+        $subjects = $zip->getFromName('xl/worksheets/sheet'.(array_search('Matières', $names) + 1).'.xml');
+        $timetable = $zip->getFromName('xl/worksheets/sheet'.(array_search('Emploi du temps', $names) + 1).'.xml');
+        $zip->close();
+        @unlink($path);
+
+        $this->assertStringContainsString('<formula1>"Primaire,Collège,Lycée"</formula1>', $subjects);
+        $this->assertStringContainsString('Lundi,Mardi,Mercredi,Jeudi,Vendredi,Samedi', $timetable);
     }
 }
