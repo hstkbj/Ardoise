@@ -14,18 +14,22 @@ class XlsxWriter
 {
     /**
      * @param  array<string, array<int, array<int, mixed>>>  $sheets  nom de la feuille => lignes (la première = en-têtes)
+     * @param  array<string, array<int, array<int, string>>>  $lists  nom de la feuille => [index de colonne (0 = A) => choix] : listes déroulantes
      */
-    public static function download(string $filename, array $sheets): StreamedResponse
+    public static function download(string $filename, array $sheets, array $lists = []): StreamedResponse
     {
-        $content = self::build($sheets);
+        $content = self::build($sheets, $lists);
 
         return response()->streamDownload(function () use ($content) {
             echo $content;
         }, $filename, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
     }
 
-    /** @param  array<string, array<int, array<int, mixed>>>  $sheets */
-    public static function build(array $sheets): string
+    /**
+     * @param  array<string, array<int, array<int, mixed>>>  $sheets
+     * @param  array<string, array<int, array<int, string>>>  $lists  listes déroulantes (lignes 2 à 1000 de la colonne)
+     */
+    public static function build(array $sheets, array $lists = []): string
     {
         $path = tempnam(sys_get_temp_dir(), 'xlsx');
         $zip = new ZipArchive;
@@ -44,7 +48,7 @@ class XlsxWriter
             $overrides .= '<Override PartName="/xl/worksheets/sheet'.$n.'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
             $sheetTags .= '<sheet name="'.self::escape(self::sheetName($name)).'" sheetId="'.$n.'" r:id="rId'.$n.'"/>';
             $relations .= '<Relationship Id="rId'.$n.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'.$n.'.xml"/>';
-            $zip->addFromString('xl/worksheets/sheet'.$n.'.xml', self::sheetXml($sheets[$name]));
+            $zip->addFromString('xl/worksheets/sheet'.$n.'.xml', self::sheetXml($sheets[$name], $lists[$name] ?? []));
         }
 
         $relations .= '<Relationship Id="rId'.(count($names) + 1).'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
@@ -63,8 +67,11 @@ class XlsxWriter
         return $content;
     }
 
-    /** @param  array<int, array<int, mixed>>  $rows */
-    protected static function sheetXml(array $rows): string
+    /**
+     * @param  array<int, array<int, mixed>>  $rows
+     * @param  array<int, array<int, string>>  $lists
+     */
+    protected static function sheetXml(array $rows, array $lists = []): string
     {
         $width = max(1, ...array_map('count', $rows ?: [[]]));
         $cols = '<cols><col min="1" max="'.$width.'" width="24" customWidth="1"/></cols>';
@@ -87,7 +94,30 @@ class XlsxWriter
             $data .= '</row>';
         }
 
-        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n".'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'.$cols.'<sheetData>'.$data.'</sheetData></worksheet>';
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n".'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'.$cols.'<sheetData>'.$data.'</sheetData>'.self::validationsXml($lists).'</worksheet>';
+    }
+
+    /** Listes déroulantes : les valeurs sont écrites dans la formule (255 caractères au plus, sans virgule dans un choix). */
+    protected static function validationsXml(array $lists): string
+    {
+        $items = '';
+
+        foreach ($lists as $column => $choices) {
+            $choices = array_values(array_filter(array_map(fn ($c) => trim(str_replace(',', ' ', (string) $c)), $choices), fn ($c) => $c !== ''));
+
+            while ($choices && mb_strlen(implode(',', $choices)) > 255) {
+                array_pop($choices);
+            }
+
+            if (! $choices) {
+                continue;
+            }
+
+            $ref = self::columnName((int) $column).'2:'.self::columnName((int) $column).'1000';
+            $items .= '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Valeur non reconnue" error="Choisissez une valeur de la liste." sqref="'.$ref.'"><formula1>"'.self::escape(implode(',', $choices)).'"</formula1></dataValidation>';
+        }
+
+        return $items === '' ? '' : '<dataValidations count="'.substr_count($items, '<dataValidation ').'">'.$items.'</dataValidations>';
     }
 
     protected static function columnName(int $index): string

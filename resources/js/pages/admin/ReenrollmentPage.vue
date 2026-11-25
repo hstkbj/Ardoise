@@ -119,7 +119,7 @@ watch([schoolId, fromClassId], load, { immediate: true });
             <td class="px-4 py-2">
               <select v-model="target[r.student_id]" class="input" :aria-label="`Nouvelle classe de ${r.full_name}`" @change="selected[r.student_id] = !!target[r.student_id]">
                 <option value="">— Choisir —</option>
-                <option v-for="c in OPTIONS.classes" :key="c.value" :value="c.value">{{ c.label }}{{ c.school ? ` · ${c.school}` : '' }}</option>
+                <option v-for="c in OPTIONS.classes" :key="c.value" :value="c.value">{{ c.label }}</option>
               </select>
             </td>
           </tr>

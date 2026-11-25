@@ -50,7 +50,13 @@ class OptionsController extends Controller
             'terms' => $opt($year && tenant()?->hasFeature('grades') ? $year->terms()->get() : collect()),
             'currentTerm' => Term::current()?->id,
             'levels' => Level::orderBy('position')->get()->map(fn ($l) => ['value' => $l->name, 'label' => $l->name, 'id' => $l->id]),
-            'classes' => $classes->map(fn ($c) => ['value' => $c->id, 'label' => $c->name, 'school_id' => $c->campus_id, 'school' => $c->campus?->name]),
+            // Deux sites peuvent avoir une « 6e A » : on ajoute le site au libellé seulement pour ces doublons
+            'classes' => $classes->map(fn ($c) => [
+                'value' => $c->id,
+                'label' => $classes->where('name', $c->name)->count() > 1 && $c->campus ? $c->name.' · '.$c->campus->name : $c->name,
+                'school_id' => $c->campus_id,
+                'school' => $c->campus?->name,
+            ]),
             'subjects' => $opt(Subject::where('status', 'active')->orderBy('name')->get()),
             'teachers' => $opt(Teacher::where('status', '!=', 'inactive')->orderBy('last_name')->get(), 'full_name'),
             'students' => Student::with('currentEnrollment.classRoom')->where('status', 'active')

@@ -110,7 +110,7 @@ function open(row) {
         <label for="pay-class" class="label">Classe</label>
         <select id="pay-class" v-model="classId" class="input mt-1">
           <option v-if="!classes.length" value="">Aucune classe</option>
-          <option v-for="c in classes" :key="c.value" :value="c.value">{{ c.label }}{{ c.school ? ` · ${c.school}` : '' }}</option>
+          <option v-for="c in classes" :key="c.value" :value="c.value">{{ c.label }}</option>
         </select>
       </div>
       <div>

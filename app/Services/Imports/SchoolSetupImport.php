@@ -11,6 +11,7 @@ use App\Models\Tenant\ParentProfile;
 use App\Models\Tenant\Student;
 use App\Models\Tenant\Subject;
 use App\Models\Tenant\Teacher;
+use App\Models\Tenant\TimetableEntry;
 use App\Services\AccountService;
 use App\Services\Billing\PlanLimits;
 use App\Support\Phone;
@@ -24,7 +25,7 @@ use Throwable;
 
 /**
  * Mise en route d'une école avec un seul classeur Excel à plusieurs feuilles :
- * Enseignants, Matières, Classes, Affectations, Élèves, Parents.
+ * Enseignants, Matières, Classes, Affectations, Emploi du temps, Élèves, Parents.
  *
  * Principe « chercher ou créer » : une personne ou un élément cité dans une feuille est
  * d'abord cherché (enseignant : e-mail, téléphone, puis nom ; matière : nom ou code ;
@@ -57,6 +58,13 @@ class SchoolSetupImport
     /** @var Collection<int, ClassRoom> */
     protected Collection $classes;
 
+    /** Cycles proposés par Ardoise pour une matière (mêmes valeurs que le formulaire Matières). */
+    public const CYCLES = ['Primaire', 'Collège', 'Lycée'];
+
+    public const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+
+    public const CONTRACTS = ['Permanent' => 'permanent', 'Vacataire' => 'vacataire'];
+
     public function __construct(protected StudentImport $students, protected AccountService $accounts, protected PlanLimits $limits) {}
 
     /** @return array<string, array<int, array<int, string>>> nom de la feuille => lignes (en-têtes d'abord) */
@@ -65,21 +73,24 @@ class SchoolSetupImport
         return [
             'Instructions' => [
                 ['Comment remplir ce classeur'],
-                ['1. Remplissez les feuilles dans l’ordre : Enseignants, Matières, Classes, Affectations, Élèves, Parents. Les feuilles inutiles peuvent rester vides.'],
+                ['1. Remplissez les feuilles dans l’ordre : Enseignants, Matières, Classes, Affectations, Emploi du temps, Élèves, Parents. Les feuilles inutiles peuvent rester vides.'],
                 ['2. Gardez la première ligne de chaque feuille (les en-têtes) et supprimez la ligne d’exemple.'],
                 ['3. Un enseignant, une matière ou une classe cité dans une feuille est d’abord cherché : s’il existe déjà, il est réutilisé ; sinon il est créé avec le minimum (nom et prénoms).'],
                 ['4. Un enseignant retrouvé dans un autre établissement garde ses établissements actuels : le nouveau est simplement ajouté.'],
                 ['5. Établissement : indiquez son nom. S’il n’existe pas encore, il est créé (dans la limite de votre plan) ; vous pourrez compléter son adresse ensuite. Vous pouvez laisser la colonne vide si l’école n’en a qu’un. Plusieurs établissements se séparent par une virgule.'],
                 ['6. Niveau : un des niveaux de l’école (CP1, 6e, 2nde…). Année scolaire : elle doit être ouverte pour inscrire des élèves.'],
-                ['7. Envoyez le fichier dans Ardoise : « Vérifier » contrôle tout sans rien enregistrer, « Importer » enregistre.'],
+                ['7. Matières : le Cycle (Primaire, Collège ou Lycée) se choisit dans la liste ; vide = la matière est proposée à tous les cycles. L’Enseignant référent est l’enseignant par défaut de la matière : il est repris automatiquement dans chaque nouvelle classe du cycle.'],
+                ['8. Emploi du temps : un cours par ligne (classe, jour, début, fin, matière). Heures au format 08:00 ; l’enseignant est celui de la matière dans la classe si la colonne est vide. Les chevauchements (classe, enseignant, salle) sont refusés.'],
+                ['9. Les colonnes à liste déroulante n’acceptent que les valeurs proposées.'],
+                ['10. Envoyez le fichier dans Ardoise : « Vérifier » contrôle tout sans rien enregistrer, « Importer » enregistre.'],
             ],
             'Enseignants' => [
-                ['Nom', 'Prénoms', 'E-mail', 'Téléphone', 'Établissement', 'Matières'],
-                ['DUPONT', 'Jean', 'jean.dupont@exemple.com', '+22997000000', 'Collège Akoma', 'Mathématiques, Physique'],
+                ['Nom', 'Prénoms', 'E-mail', 'Téléphone', 'Établissement', 'Matières', 'Contrat', 'Date d’embauche'],
+                ['DUPONT', 'Jean', 'jean.dupont@exemple.com', '+22997000000', 'Collège Akoma', 'Mathématiques, Physique', 'Permanent', '15/09/2020'],
             ],
             'Matières' => [
-                ['Matière', 'Code', 'Catégorie', 'Coefficient', 'Enseignant'],
-                ['Mathématiques', 'MATH', 'Sciences', '4', 'Jean DUPONT'],
+                ['Matière', 'Code', 'Cycle', 'Catégorie', 'Coefficient', 'Enseignant référent'],
+                ['Mathématiques', 'MATH', 'Collège', 'Sciences', '4', 'Jean DUPONT'],
             ],
             'Classes' => [
                 ['Classe', 'Niveau', 'Établissement', 'Capacité', 'Salle', 'Professeur principal'],
@@ -88,6 +99,10 @@ class SchoolSetupImport
             'Affectations' => [
                 ['Classe', 'Établissement', 'Matière', 'Enseignant', 'Coefficient'],
                 ['6e A', 'Collège Akoma', 'Mathématiques', 'Jean DUPONT', '4'],
+            ],
+            'Emploi du temps' => [
+                ['Classe', 'Établissement', 'Jour', 'Début', 'Fin', 'Matière', 'Enseignant', 'Salle'],
+                ['6e A', 'Collège Akoma', 'Lundi', '08:00', '09:00', 'Mathématiques', 'Jean DUPONT', 'Salle 3'],
             ],
             'Élèves' => [StudentImport::templateHeaders(), StudentImport::templateExample()],
             'Parents' => [
@@ -98,20 +113,40 @@ class SchoolSetupImport
     }
 
     /**
+     * Listes déroulantes du modèle : feuille => [index de colonne => choix].
+     *
+     * @param  array<int, string>  $levels  niveaux de l'école
+     * @param  array<int, string>  $campuses  établissements de l'école
+     * @return array<string, array<int, array<int, string>>>
+     */
+    public static function templateLists(array $levels = [], array $campuses = []): array
+    {
+        $campusList = array_slice($campuses, 0, 30);
+
+        return array_filter([
+            'Enseignants' => array_filter([6 => array_keys(self::CONTRACTS)]),
+            'Matières' => [2 => self::CYCLES],
+            'Classes' => array_filter([1 => $levels, 2 => $campusList]),
+            'Affectations' => array_filter([1 => $campusList]),
+            'Emploi du temps' => array_filter([1 => $campusList, 2 => self::DAYS]),
+        ]);
+    }
+
+    /**
      * @param  array<string, array<int, array<string, string>>>  $sheets  feuilles lues (SpreadsheetReader::readSheets)
      * @return array<string, mixed>
      */
     public function run(array $sheets, bool $dryRun = false): array
     {
-        $known = ['instructions', 'enseignants', 'matieres', 'classes', 'affectations', 'eleves', 'parents'];
+        $known = ['instructions', 'enseignants', 'matieres', 'classes', 'affectations', 'emploi_du_temps', 'eleves', 'parents'];
         $unknown = array_diff(array_keys($sheets), $known);
 
         if (! array_filter(Arr::only($sheets, array_diff($known, ['instructions'])))) {
-            throw new ImportException([['line' => 1, 'message' => 'Aucune donnée trouvée. Utilisez le modèle : les feuilles doivent s’appeler Enseignants, Matières, Classes, Affectations, Élèves et Parents.'.($unknown ? ' Feuilles non reconnues : '.implode(', ', $unknown).'.' : '')]]);
+            throw new ImportException([['line' => 1, 'message' => 'Aucune donnée trouvée. Utilisez le modèle : les feuilles doivent s’appeler Enseignants, Matières, Classes, Affectations, Emploi du temps, Élèves et Parents.'.($unknown ? ' Feuilles non reconnues : '.implode(', ', $unknown).'.' : '')]]);
         }
 
         $this->errors = [];
-        $this->stats = array_fill_keys(['campuses_created', 'teachers_created', 'teachers_linked', 'subjects_created', 'classes_created', 'classes_updated', 'assignments', 'students_created', 'students_updated', 'parents_created', 'parents_linked'], 0);
+        $this->stats = array_fill_keys(['campuses_created', 'teachers_created', 'teachers_linked', 'subjects_created', 'classes_created', 'classes_updated', 'assignments', 'timetable_entries', 'students_created', 'students_updated', 'parents_created', 'parents_linked'], 0);
 
         $connection = DB::connection('tenant');
         $connection->beginTransaction();
@@ -127,6 +162,7 @@ class SchoolSetupImport
             $this->importSubjects($sheets['matieres'] ?? []);
             $this->importClasses($sheets['classes'] ?? []);
             $this->importAssignments($sheets['affectations'] ?? []);
+            $this->importTimetable($sheets['emploi_du_temps'] ?? []);
             $this->importStudents($sheets['eleves'] ?? []);
             $this->importParents($sheets['parents'] ?? []);
 
@@ -166,6 +202,7 @@ class SchoolSetupImport
 
             $campusIds = $this->campusIds('Enseignants', $row, $this->cell($row, 'etablissement', 'etablissements', 'ecole', 'site'), required: false, create: true);
             $teacher = $this->findOrCreateTeacher($first, $last, $this->cell($row, 'e_mail', 'email', 'mail'), $this->cell($row, 'telephone', 'tel'), $campusIds);
+            $this->fillTeacherContract($row, $teacher);
 
             foreach ($this->splitList($this->cell($row, 'matieres', 'matiere')) as $subjectName) {
                 $subject = $this->findOrCreateSubject($subjectName);
@@ -188,12 +225,32 @@ class SchoolSetupImport
                 continue;
             }
 
-            $coefficient = $this->coefficient('Matières', $row, $this->cell($row, 'coefficient', 'coef'));
-            $subject = $this->findOrCreateSubject($name, $this->cell($row, 'code'), $this->cell($row, 'categorie'), $coefficient);
+            $cycleCell = $this->cell($row, 'cycle');
+            $cycle = null;
 
-            if (($teacherName = $this->cell($row, 'enseignant')) !== '') {
+            if ($cycleCell !== '') {
+                $cycle = Arr::first(self::CYCLES, fn ($c) => self::key($c) === self::key($cycleCell));
+
+                if (! $cycle) {
+                    $this->fail('Matières', $row, "Cycle « {$cycleCell} » inconnu. Valeurs possibles : ".implode(', ', self::CYCLES).'.');
+
+                    continue;
+                }
+            }
+
+            $coefficient = $this->coefficient('Matières', $row, $this->cell($row, 'coefficient', 'coef'));
+            $subject = $this->findOrCreateSubject($name, $this->cell($row, 'code'), $this->cell($row, 'categorie'), $coefficient, $cycle);
+
+            // Cycle : renseigné seulement s'il ne l'était pas (on ne remplace jamais une valeur existante)
+            if ($cycle && ! $subject->level) {
+                $subject->update(['level' => $cycle]);
+            }
+
+            // Enseignant référent : enseignant par défaut de la matière, aussi rattaché à la matière
+            if (($teacherName = $this->cell($row, 'enseignant_referent', 'referent', 'enseignant')) !== '') {
                 $teacher = $this->findOrCreateTeacherByFullName($teacherName, []);
                 $this->linkSubjectTeacher($subject, $teacher);
+                ! $subject->teacher_id && $subject->update(['teacher_id' => $teacher->id]);
             }
         }
     }
@@ -259,7 +316,7 @@ class SchoolSetupImport
                 continue;
             }
 
-            $this->classes->push(ClassRoom::create([
+            $created = ClassRoom::create([
                 'campus_id' => $campusId,
                 'level_id' => $level->id,
                 'head_teacher_id' => $head?->id,
@@ -267,7 +324,9 @@ class SchoolSetupImport
                 'capacity' => $capacity !== '' ? (int) $capacity : null,
                 'room' => mb_substr($this->cell($row, 'salle'), 0, 100) ?: null,
                 'status' => 'active',
-            ]));
+            ]);
+            $this->classes->push($created);
+            $this->attachLevelSubjects($created, $level);
             $this->stats['classes_created']++;
         }
     }
@@ -317,6 +376,134 @@ class SchoolSetupImport
 
             $this->stats['assignments']++;
         }
+    }
+
+    // ── Emploi du temps ────────────────────────────────────────────────────
+
+    /** @param  array<int, array<string, string>>  $rows */
+    protected function importTimetable(array $rows): void
+    {
+        if (! $rows) {
+            return;
+        }
+
+        if (! tenant()?->hasFeature('timetable')) {
+            $this->fail('Emploi du temps', $rows[0], 'La gestion de l’emploi du temps n’est pas incluse dans votre abonnement.');
+
+            return;
+        }
+
+        foreach ($rows as $row) {
+            $className = $this->cell($row, 'classe');
+            $subjectName = $this->cell($row, 'matiere');
+
+            if ($className === '' || $subjectName === '') {
+                $this->fail('Emploi du temps', $row, 'Classe et matière obligatoires.');
+
+                continue;
+            }
+
+            $dayCell = $this->cell($row, 'jour');
+            $day = $this->dayIndex($dayCell);
+            $start = self::time($this->cell($row, 'debut', 'heure_de_debut', 'de'));
+            $end = self::time($this->cell($row, 'fin', 'heure_de_fin', 'a'));
+
+            if ($day === null || ! $start || ! $end || $end <= $start) {
+                $this->fail('Emploi du temps', $row, $day === null
+                    ? 'Jour invalide : « '.$dayCell.' » (Lundi à Samedi).'
+                    : 'Heures invalides : indiquez un début et une fin au format 08:00, la fin après le début.');
+
+                continue;
+            }
+
+            $class = $this->findClass('Emploi du temps', $row, $className, $this->cell($row, 'etablissement', 'ecole', 'site'));
+
+            if (! $class) {
+                continue;
+            }
+
+            $subject = $this->findOrCreateSubject($subjectName);
+            $teacherName = $this->cell($row, 'enseignant');
+            $teacher = $teacherName !== '' ? $this->findOrCreateTeacherByFullName($teacherName, [$class->campus_id]) : null;
+            $teacher && $this->linkSubjectTeacher($subject, $teacher);
+
+            // La matière doit être affectée à la classe ; l'enseignant du cours en découle
+            $assignment = ClassSubject::firstOrCreate(
+                ['class_room_id' => $class->id, 'subject_id' => $subject->id],
+                ['teacher_id' => $teacher?->id ?? $subject->teacher_id, 'coefficient' => $subject->default_coefficient ?? 1],
+            );
+            ! $assignment->teacher_id && $teacher && $assignment->update(['teacher_id' => $teacher->id]);
+            $teacherId = $teacher?->id ?? $assignment->teacher_id;
+            $room = mb_substr($this->cell($row, 'salle'), 0, 50) ?: null;
+
+            // Le même créneau ré-importé est mis à jour, pas dupliqué
+            $entry = TimetableEntry::where('class_room_id', $class->id)->where('day_of_week', $day)->where('starts_at', $start)->where('ends_at', $end)->first();
+            $overlap = fn ($q) => $q->where('day_of_week', $day)->where('starts_at', '<', $end)->where('ends_at', '>', $start)
+                ->when($entry, fn ($e) => $e->whereKeyNot($entry->id));
+
+            if (TimetableEntry::where('class_room_id', $class->id)->where($overlap)->exists()) {
+                $this->fail('Emploi du temps', $row, "La classe {$class->name} a déjà un cours sur ce créneau.");
+
+                continue;
+            }
+
+            if ($teacherId && TimetableEntry::where('teacher_id', $teacherId)->where($overlap)->exists()) {
+                $this->fail('Emploi du temps', $row, 'Cet enseignant a déjà un cours sur ce créneau.');
+
+                continue;
+            }
+
+            if ($room && TimetableEntry::where('room', $room)->where($overlap)->exists()) {
+                $this->fail('Emploi du temps', $row, "La salle « {$room} » est déjà occupée sur ce créneau.");
+
+                continue;
+            }
+
+            $values = ['subject_id' => $subject->id, 'teacher_id' => $teacherId, 'room' => $room];
+
+            $entry
+                ? $entry->update($values)
+                : TimetableEntry::create($values + ['class_room_id' => $class->id, 'day_of_week' => $day, 'starts_at' => $start, 'ends_at' => $end]);
+            $this->stats['timetable_entries']++;
+        }
+    }
+
+    protected function dayIndex(string $value): ?int
+    {
+        $key = self::key($value);
+
+        if (mb_strlen($key) < 3) {
+            return null;
+        }
+
+        foreach (self::DAYS as $i => $day) {
+            if (str_starts_with(self::key($day), $key) || str_starts_with($key, mb_substr(self::key($day), 0, 3))) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    /** 8h, 8h30, 08:00, 8:30:00 ou fraction de jour Excel (0.3333) → « 08:00 » ; null si invalide. */
+    protected static function time(string $value): ?string
+    {
+        $value = trim($value);
+
+        if (is_numeric($value) && (float) $value > 0 && (float) $value < 1) {
+            $minutes = (int) round((float) $value * 1440);
+
+            return sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
+        }
+
+        if (! preg_match('/^(\d{1,2})\s*(?:h|:)\s*(\d{2})?(?::\d{2})?$/i', $value, $m)) {
+            return null;
+        }
+
+        $hours = (int) $m[1];
+        $minutes = (int) ($m[2] ?? 0);
+
+        return $hours > 23 || $minutes > 59 ? null : sprintf('%02d:%02d', $hours, $minutes);
     }
 
     // ── Élèves et parents ──────────────────────────────────────────────────
@@ -427,7 +614,7 @@ class SchoolSetupImport
         return $this->findOrCreateTeacher($first, $last, campusIds: $campusIds);
     }
 
-    protected function findOrCreateSubject(string $name, string $code = '', string $category = '', ?float $coefficient = null): Subject
+    protected function findOrCreateSubject(string $name, string $code = '', string $category = '', ?float $coefficient = null, ?string $level = null): Subject
     {
         $subject = $this->subjects->first(fn (Subject $s) => self::key($s->name) === self::key($name)
             || ($code !== '' && Str::lower($s->code) === Str::lower($code)));
@@ -440,6 +627,7 @@ class SchoolSetupImport
             'name' => mb_substr($name, 0, 150),
             'code' => $this->uniqueSubjectCode($code !== '' ? $code : $name),
             'category' => $category !== '' ? mb_substr($category, 0, 100) : null,
+            'level' => $level,
             'default_coefficient' => $coefficient ?? 1,
             'status' => 'active',
         ]);
@@ -456,6 +644,49 @@ class SchoolSetupImport
             $subject->teachers()->syncWithoutDetaching([$teacher->id]);
             $subject->setRelation('teachers', $subject->teachers()->get());
         }
+    }
+
+    /** Contrat et date d'embauche de la feuille Enseignants : renseignés sans écraser une valeur existante. */
+    protected function fillTeacherContract(array $row, Teacher $teacher): void
+    {
+        $changes = [];
+        $contractCell = $this->cell($row, 'contrat');
+        $hiredCell = $this->cell($row, 'date_d_embauche', 'embauche', 'date_embauche');
+
+        if ($contractCell !== '') {
+            $contract = collect(self::CONTRACTS)->first(fn ($v, $label) => self::key($label) === self::key($contractCell) || $v === self::key($contractCell));
+
+            if (! $contract) {
+                $this->fail('Enseignants', $row, "Contrat « {$contractCell} » inconnu (Permanent ou Vacataire).");
+            } elseif ($teacher->wasRecentlyCreated || ! $teacher->contract) {
+                $changes['contract'] = $contract;
+            }
+        }
+
+        if ($hiredCell !== '') {
+            $date = CellParser::date($hiredCell);
+
+            if ($date === false) {
+                $this->fail('Enseignants', $row, "Date d’embauche invalide : « {$hiredCell} » (jj/mm/aaaa).");
+            } elseif ($date && ! $teacher->hired_on) {
+                $changes['hired_on'] = $date;
+            }
+        }
+
+        $changes && $teacher->update($changes);
+    }
+
+    /** Comme à la création d'une classe dans l'application : matières actives du cycle, avec référent et coefficient par défaut. */
+    protected function attachLevelSubjects(ClassRoom $class, Level $level): void
+    {
+        $cycle = ['primaire' => 'Primaire', 'college' => 'Collège', 'lycee' => 'Lycée'][$level->cycle] ?? null;
+
+        $this->subjects
+            ->filter(fn (Subject $s) => $s->status === 'active' && (! $s->level || $s->level === $cycle))
+            ->each(fn (Subject $s) => ClassSubject::firstOrCreate(
+                ['class_room_id' => $class->id, 'subject_id' => $s->id],
+                ['teacher_id' => $s->teacher_id, 'coefficient' => $s->default_coefficient],
+            ));
     }
 
     protected function uniqueSubjectCode(string $source): string

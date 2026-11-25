@@ -34,6 +34,10 @@ const router = useRouter();
 const auth = useAuthStore();
 const ui = useUiStore();
 const res = getResource(props.resource);
+// Colonnes et filtres « multiCampus » : inutiles (et sources de doublons visuels) quand l'école n'a qu'un seul site
+const multiCampus = computed(() => OPTIONS.schools.length > 1);
+const visibleFilters = computed(() => res.filters.filter((f) => !f.multiCampus || multiCampus.value));
+const visibleColumns = computed(() => res.columns.filter((c) => !c.multiCampus || multiCampus.value));
 
 // Filtres initiaux depuis l'URL (?status=overdue&class_id=3)
 const fromQuery = (v) => (v === undefined ? '' : /^\d+$/.test(v) ? Number(v) : v);
@@ -187,7 +191,7 @@ const hasActions = computed(() => res.rowActions.length > 0);
     <div class="card">
       <div class="flex flex-wrap items-end gap-3 border-b border-line-soft p-4">
         <div class="min-w-56 flex-1"><SearchInput v-model="search" :placeholder="res.searchPlaceholder || 'Rechercher…'" /></div>
-        <div v-for="f in res.filters" :key="f.key" class="w-full sm:w-44"><FilterDropdown v-model="filters[f.key]" :label="f.label" :options="filterOptions(f)" hide-label :all-label="`${f.label} : tous`" /></div>
+        <div v-for="f in visibleFilters" :key="f.key" class="w-full sm:w-44"><FilterDropdown v-model="filters[f.key]" :label="f.label" :options="filterOptions(f)" hide-label :all-label="`${f.label} : tous`" /></div>
         <button v-if="table.hasActiveFilters.value" type="button" class="btn btn-ghost" @click="table.resetFilters()"><AppIcon name="x" class="size-4" />Réinitialiser</button>
       </div>
 
@@ -199,7 +203,7 @@ const hasActions = computed(() => res.rowActions.length > 0);
 
       <DataTable
         v-model:selected="selected"
-        :columns="res.columns"
+        :columns="visibleColumns"
         :rows="rows"
         :loading="loading"
         :error="error"

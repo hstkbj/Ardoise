@@ -27,9 +27,10 @@ const items = computed(() => [
 
 const SHEETS = [
   ['Enseignants', 'Nom, prénoms, e-mail, téléphone, établissements, matières.'],
-  ['Matières', 'Nom, code, catégorie, coefficient, enseignant.'],
+  ['Matières', 'Nom, code, cycle (liste), catégorie, coefficient, enseignant référent.'],
   ['Classes', 'Nom, niveau, établissement (créé s’il n’existe pas), capacité, professeur principal (créé s’il n’existe pas).'],
   ['Affectations', 'Quelle matière, quel enseignant et quel coefficient dans chaque classe.'],
+  ['Emploi du temps', 'Un cours par ligne : classe, jour, heures, matière, enseignant, salle.'],
   ['Élèves', 'Identité, classe et premier parent (retrouvé par téléphone, sinon créé avec son code d’accès).'],
   ['Parents', 'Un parent lié à un ou plusieurs élèves par leur matricule.'],
 ];
@@ -105,6 +106,7 @@ function imported(result) {
           <div><dt class="text-muted">Matières créées</dt><dd class="font-semibold">{{ last.subjects_created }}</dd></div>
           <div><dt class="text-muted">Classes créées</dt><dd class="font-semibold">{{ last.classes_created }}</dd></div>
           <div><dt class="text-muted">Affectations</dt><dd class="font-semibold">{{ last.assignments }}</dd></div>
+          <div><dt class="text-muted">Cours planifiés</dt><dd class="font-semibold">{{ last.timetable_entries }}</dd></div>
           <div><dt class="text-muted">Élèves inscrits</dt><dd class="font-semibold">{{ last.students_created }}</dd></div>
           <div><dt class="text-muted">Parents créés</dt><dd class="font-semibold">{{ last.parents_created }}</dd></div>
           <div><dt class="text-muted">Parents liés</dt><dd class="font-semibold">{{ last.parents_linked }}</dd></div>
