@@ -1,0 +1,273 @@
+/* Thème e-mail Ardoise : vert #1D5C4D, accent ambre #F2B33D */
+body,
+body *:not(html):not(style):not(br):not(tr):not(code) {
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    position: relative;
+}
+
+body {
+    -webkit-text-size-adjust: none;
+    background-color: #F1F7F4;
+    color: #1F2933;
+    height: 100%;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    width: 100% !important;
+}
+
+p, ul, ol, blockquote {
+    line-height: 1.6;
+    text-align: left;
+}
+
+a {
+    color: #1D5C4D;
+}
+
+a img {
+    border: none;
+}
+
+/* Typographie */
+h1 {
+    color: #12372F;
+    font-size: 22px;
+    font-weight: bold;
+    margin-top: 0;
+    text-align: left;
+}
+
+h2 {
+    color: #12372F;
+    font-size: 18px;
+    font-weight: bold;
+    margin-top: 0;
+    text-align: left;
+}
+
+h3 {
+    color: #12372F;
+    font-size: 15px;
+    font-weight: bold;
+    margin-top: 0;
+    text-align: left;
+}
+
+p {
+    color: #374151;
+    font-size: 16px;
+    line-height: 1.6em;
+    margin-top: 0;
+    text-align: left;
+}
+
+p.sub {
+    font-size: 12px;
+}
+
+img {
+    max-width: 100%;
+}
+
+/* Conteneur */
+.wrapper {
+    background-color: #F1F7F4;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.content {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+/* Bandeau */
+.header {
+    background-color: #1D5C4D;
+    border-bottom: 4px solid #F2B33D;
+    padding: 22px 0;
+    text-align: center;
+}
+
+.header a {
+    color: #FFFFFF;
+    font-size: 22px;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+/* Corps */
+.body {
+    background-color: #F1F7F4;
+    border-bottom: 1px solid #F1F7F4;
+    border-top: 1px solid #F1F7F4;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.inner-body {
+    background-color: #FFFFFF;
+    border-color: #DDE8E3;
+    border-radius: 10px;
+    border-width: 1px;
+    box-shadow: 0 2px 6px rgba(18, 55, 47, 0.08);
+    margin: 28px auto;
+    padding: 0;
+    width: 570px;
+}
+
+.inner-body a {
+    word-break: break-all;
+}
+
+.content-cell {
+    max-width: 100vw;
+    padding: 32px;
+}
+
+/* Sous-texte (lien de secours du bouton) */
+.subcopy {
+    border-top: 1px solid #E5EDE9;
+    margin-top: 25px;
+    padding-top: 25px;
+}
+
+.subcopy p {
+    color: #6B7280;
+    font-size: 13px;
+}
+
+/* Pied de page */
+.footer {
+    margin: 0 auto;
+    padding: 0;
+    text-align: center;
+    width: 570px;
+}
+
+.footer p {
+    color: #6B7280;
+    font-size: 12px;
+    text-align: center;
+}
+
+.footer a {
+    color: #6B7280;
+    text-decoration: underline;
+}
+
+/* Tableaux */
+.table table {
+    margin: 30px auto;
+    width: 100%;
+}
+
+.table th {
+    border-bottom: 1px solid #DDE8E3;
+    color: #12372F;
+    margin: 0;
+    padding-bottom: 8px;
+}
+
+.table td {
+    color: #374151;
+    font-size: 15px;
+    line-height: 18px;
+    margin: 0;
+    padding: 10px 0;
+}
+
+.content-cell .table th,
+.content-cell .table td {
+    text-align: left;
+}
+
+/* Boutons */
+.action {
+    margin: 30px auto;
+    padding: 0;
+    text-align: center;
+    width: 100%;
+}
+
+.button {
+    -webkit-text-size-adjust: none;
+    border-radius: 8px;
+    color: #FFFFFF;
+    display: inline-block;
+    font-weight: bold;
+    overflow: hidden;
+    text-decoration: none;
+}
+
+.button-blue,
+.button-primary {
+    background-color: #1D5C4D;
+    border-bottom: 12px solid #1D5C4D;
+    border-left: 28px solid #1D5C4D;
+    border-right: 28px solid #1D5C4D;
+    border-top: 12px solid #1D5C4D;
+}
+
+.button-green,
+.button-success {
+    background-color: #2D7A66;
+    border-bottom: 12px solid #2D7A66;
+    border-left: 28px solid #2D7A66;
+    border-right: 28px solid #2D7A66;
+    border-top: 12px solid #2D7A66;
+}
+
+.button-red,
+.button-error {
+    background-color: #B42318;
+    border-bottom: 12px solid #B42318;
+    border-left: 28px solid #B42318;
+    border-right: 28px solid #B42318;
+    border-top: 12px solid #B42318;
+}
+
+/* Encadré d'informations (identifiants, échéances…) */
+.panel {
+    border-left: #F2B33D solid 4px;
+    margin: 21px 0;
+}
+
+.panel-content {
+    background-color: #F1F7F4;
+    color: #374151;
+    padding: 16px;
+}
+
+.panel-content p {
+    color: #374151;
+}
+
+.panel-item {
+    padding: 0;
+}
+
+.panel-item p:last-of-type {
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+/* Divers */
+.break-all {
+    word-break: break-all;
+}
+
+code {
+    background-color: #FFFFFF;
+    border: 1px solid #DDE8E3;
+    border-radius: 4px;
+    color: #12372F;
+    font-family: Menlo, Consolas, monospace;
+    font-size: 15px;
+    padding: 2px 6px;
+}

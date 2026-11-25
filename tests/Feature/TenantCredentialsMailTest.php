@@ -52,7 +52,11 @@ class TenantCredentialsMailTest extends TestCase
             return $mail->hasTo('directeur@lumiere.bj')
                 && ! $mail->isReset
                 && str_contains($html, 'https://lycee-lumiere.ardoise.test/login')
-                && str_contains($html, $password);
+                && str_contains($html, $password)
+                // Habillage Ardoise : logo, vert de la marque et pied de page
+                && str_contains($html, 'https://ardoise.test/icon-192.png')
+                && str_contains($html, '#1D5C4D')
+                && str_contains($html, 'Message automatique');
         });
     }
 
